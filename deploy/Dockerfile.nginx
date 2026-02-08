@@ -1,0 +1,22 @@
+# Nginx Dockerfile - 构建前端 + 反向代理
+# Stage 1: 构建 Astro 前端静态文件
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+
+COPY frontend/ .
+RUN npm run build
+
+# Stage 2: Nginx 服务静态文件 + 反向代理后端 API
+FROM nginx:alpine
+
+# 复制构建好的前端静态文件
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+
+# 复制 Nginx 配置
+COPY deploy/nginx.conf /etc/nginx/nginx.conf
+
+EXPOSE 80 443

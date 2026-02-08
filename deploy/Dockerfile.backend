@@ -1,4 +1,4 @@
-# Backend Dockerfile - 论文分析系统 API
+# Backend Dockerfile - Huginn 论文分析系统 API
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -16,7 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/ ./api/
 COPY src/ ./src/
 COPY config/ ./config/
-COPY run_api.py .
 
 # 创建必要的目录
 RUN mkdir -p uploads data
@@ -24,5 +23,5 @@ RUN mkdir -p uploads data
 # 暴露端口
 EXPOSE 8000
 
-# 启动命令
-CMD ["python", "run_api.py"]
+# 启动命令（生产模式，不使用 --reload）
+CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

@@ -30,6 +30,9 @@ static_html_export/
 
 # --- 数据库 ---
 *.db
+
+# --- 私密部署教程（不提交） ---
+PRIVATE_DEPLOY_GUIDE.md
 *.sqlite3
 
 # --- 敏感信息 ---

@@ -8,8 +8,8 @@ services:
       dockerfile: deploy/Dockerfile.backend
     container_name: huginn-backend
     restart: unless-stopped
-    expose:
-      - "8000"
+    ports:
+      - "127.0.0.1:8000:8000"
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./data/paper_analysis.db
       - SECRET_KEY=${SECRET_KEY}

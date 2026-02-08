@@ -1,0 +1,57 @@
+[project]
+name = "paper-auto-summarize"
+version = "1.0.0"
+description = "论文智能分析系统"
+requires-python = ">=3.11"
+dependencies = [
+    # 核心: LLM & PDF 处理
+    "openai>=1.10.0",
+    "pymupdf>=1.23.21",
+    # 数据分析 & 可视化
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.13.0",
+    "wordcloud>=1.9.0",
+    "plotly>=5.18.0",
+    # 文本处理 & 聚类
+    "jieba>=0.42.1",
+    "scikit-learn>=1.4.0",
+    "scipy>=1.11.0",
+    # Web 后端 (FastAPI)
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.6",
+    # 数据库
+    "sqlalchemy>=2.0.25",
+    "alembic>=1.13.1",
+    "aiosqlite>=0.19.0",
+    # 认证
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[argon2]>=1.7.4",
+    "python-dotenv>=1.0.0",
+    "email-validator>=2.0.0",
+    # 任务队列
+    "celery>=5.3.6",
+    "redis>=5.0.1",
+    # 文件处理
+    "aiofiles>=23.2.1",
+    "openpyxl>=3.1.0",
+    # 限流
+    "slowapi>=0.1.9",
+    # Pydantic
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    # Streamlit (本地原型)
+    "streamlit>=1.30.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic.*",
+]

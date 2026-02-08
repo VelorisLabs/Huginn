@@ -1,0 +1,71 @@
+# ============================================
+# 论文智能分析系统 - Git 忽略配置
+# ============================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# --- 虚拟环境 ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Node.js ---
+node_modules/
+.astro/
+
+# --- 运行时数据 (不提交) ---
+data/
+uploads/
+static_html_export/
+
+# --- 数据库 ---
+*.db
+*.sqlite3
+
+# --- 敏感信息 ---
+.env
+.env.local
+.env.production
+
+# --- IDE / 编辑器 ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.windsurf/
+
+# --- AI 助手工作目录 ---
+CLAUDE.md
+.claude/
+.gemini-clipboard/
+tmpclaude-*-cwd
+
+# --- 系统文件 ---
+Thumbs.db
+.DS_Store
+nul
+
+# --- 临时 / 备份 ---
+备份/
+error_log.txt
+
+# --- 审计报告 (内部文档，不进仓库) ---
+docs/audit/
+
+# --- 旧目录 (已迁移) ---
+00_inbox_pdfs/
+01_extracted_json/
+02_summary_csv/
+03_visualizations/
+web/
+webapp/

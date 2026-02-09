@@ -290,7 +290,7 @@ async def create_test_user():
         user = User(
             email="test@example.com",
             username="test",
-            hashed_password=get_password_hash("test"),
+            hashed_password=get_password_hash("test123"),
             is_active=True,
             is_superuser=False
         )

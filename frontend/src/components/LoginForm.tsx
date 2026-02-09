@@ -19,9 +19,16 @@ export default function LoginForm() {
       await login(email, password);
       window.location.href = '/';
     } catch (err) {
-      const message = err instanceof AxiosError
-        ? err.response?.data?.detail || '登录失败，请检查邮箱和密码'
-        : '网络错误，请检查网络连接';
+      let message: string;
+      if (err instanceof AxiosError) {
+        if (err.response?.status === 429) {
+          message = '登录尝试过于频繁，请稍后再试';
+        } else {
+          message = err.response?.data?.detail || '登录失败，请检查邮箱和密码';
+        }
+      } else {
+        message = '网络错误，请检查网络连接';
+      }
       setError(message);
     } finally {
       setLoading(false);

@@ -19,10 +19,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WEIGHTS_FILE = PROJECT_ROOT / "config" / "scenario_weights.json"
 
-# 数据库：优先 paper_analysis.db，兼容 data/app.db
+# 数据库（统一使用 paper_analysis.db）
 DB_CANDIDATES = [
     PROJECT_ROOT / "paper_analysis.db",
-    PROJECT_ROOT / "data" / "app.db",
 ]
 
 

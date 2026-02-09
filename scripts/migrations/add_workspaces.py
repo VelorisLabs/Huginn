@@ -24,7 +24,6 @@ WEIGHTS_FILE = PROJECT_ROOT / "config" / "scenario_weights.json"
 
 DB_CANDIDATES = [
     PROJECT_ROOT / "paper_analysis.db",
-    PROJECT_ROOT / "data" / "app.db",
 ]
 
 

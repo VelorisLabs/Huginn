@@ -4,10 +4,9 @@ import asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-# 尝试两个数据库
+# 数据库配置（统一使用 paper_analysis.db）
 DATABASES = {
     "paper_analysis.db": "sqlite+aiosqlite:///./paper_analysis.db",
-    "data/app.db": "sqlite+aiosqlite:///./data/app.db"
 }
 
 async def check_db(name, url):

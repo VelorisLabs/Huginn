@@ -57,9 +57,10 @@ export function WorkspaceManager() {
     },
   });
 
-  // Import themes
+  // Import themes (传入目标工作区 ID)
   const importThemesMut = useMutation({
-    mutationFn: (content: string) => themesAPI.importConfig(content),
+    mutationFn: ({ content, wsId }: { content: string; wsId: number }) =>
+      themesAPI.importConfig(content, wsId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['themes'] });
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
@@ -298,7 +299,7 @@ export function WorkspaceManager() {
                   取消
                 </button>
                 <button
-                  onClick={() => importThemesMut.mutate(themeImportContent)}
+                  onClick={() => themeImportWsId && importThemesMut.mutate({ content: themeImportContent, wsId: themeImportWsId })}
                   disabled={!themeImportContent.trim() || importThemesMut.isPending}
                   className="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                 >
@@ -350,14 +351,9 @@ function WorkspaceDetail({ workspace, onDelete, deleteError, isDeleting, onSaveW
   const detail: WorkspaceItem | undefined = detailData?.data;
 
   // Fetch themes for this workspace
-  const needsSwitch = activeWorkspace?.id !== workspace.id;
   const { data: themesData } = useQuery({
     queryKey: ['themes', workspace.id],
-    queryFn: async () => {
-      // Temporarily set header for this specific request
-      const { api } = await import('@/lib/api');
-      return api.get('/themes', { headers: { 'X-Workspace-Id': String(workspace.id) } });
-    },
+    queryFn: () => themesAPI.list(workspace.id),
   });
   const themes: ThemeItem[] = themesData?.data || [];
 

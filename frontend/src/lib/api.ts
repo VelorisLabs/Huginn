@@ -190,16 +190,24 @@ export type ClusteringResults = {
   clusters: ClusterGroup[];
 };
 
-// 主题 API
+// 主题 API（所有方法支持可选 workspaceId，显式指定目标工作区）
+function wsHeaders(workspaceId?: number) {
+  return workspaceId ? { 'X-Workspace-Id': String(workspaceId) } : {};
+}
+
 export const themesAPI = {
-  list: () => api.get('/themes'),
-  create: (data: { name: string; tags?: string }) => api.post('/themes', data),
-  update: (id: number, data: { name?: string; tags?: string; order?: number }) => api.put(`/themes/${id}`, data),
+  list: (workspaceId?: number) => api.get('/themes', { headers: wsHeaders(workspaceId) }),
+  create: (data: { name: string; tags?: string }, workspaceId?: number) =>
+    api.post('/themes', data, { headers: wsHeaders(workspaceId) }),
+  update: (id: number, data: { name?: string; tags?: string; order?: number }) =>
+    api.put(`/themes/${id}`, data),
   delete: (id: number) => api.delete(`/themes/${id}`),
-  importConfig: (content: string) => api.post('/themes/import', { content }),
-  exportConfig: () => api.get('/themes/export'),
-  generateByAI: (topic: string, bucket_count?: number) =>
-    api.post('/themes/generate', { topic, bucket_count: bucket_count || 8 }),
+  importConfig: (content: string, workspaceId?: number) =>
+    api.post('/themes/import', { content }, { headers: wsHeaders(workspaceId) }),
+  exportConfig: (workspaceId?: number) =>
+    api.get('/themes/export', { headers: wsHeaders(workspaceId) }),
+  generateByAI: (topic: string, bucket_count?: number, workspaceId?: number) =>
+    api.post('/themes/generate', { topic, bucket_count: bucket_count || 8 }, { headers: wsHeaders(workspaceId) }),
 };
 
 export type ThemeItem = {
@@ -257,11 +265,13 @@ export function getActiveWorkspaceId(): number | null {
   return null;
 }
 
-// 请求拦截器：自动注入 X-Workspace-Id header
+// 请求拦截器：自动注入 X-Workspace-Id header（不覆盖手动设置的值）
 api.interceptors.request.use((config) => {
-  const wsId = getActiveWorkspaceId();
-  if (wsId) {
-    config.headers['X-Workspace-Id'] = String(wsId);
+  if (!config.headers['X-Workspace-Id']) {
+    const wsId = getActiveWorkspaceId();
+    if (wsId) {
+      config.headers['X-Workspace-Id'] = String(wsId);
+    }
   }
   return config;
 });

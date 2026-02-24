@@ -32,10 +32,7 @@ export function ThemeManager({ workspaceId, workspaceName, onBack }: ThemeManage
   // Fetch themes with workspace header
   const { data: themesData, isLoading } = useQuery({
     queryKey: ['themes', workspaceId],
-    queryFn: async () => {
-      const { api } = await import('@/lib/api');
-      return api.get('/themes', { headers: { 'X-Workspace-Id': String(workspaceId) } });
-    },
+    queryFn: () => themesAPI.list(workspaceId),
   });
   const themes: ThemeItem[] = themesData?.data || [];
 
@@ -47,7 +44,7 @@ export function ThemeManager({ workspaceId, workspaceName, onBack }: ThemeManage
 
   // Create
   const createMut = useMutation({
-    mutationFn: (data: { name: string; tags?: string }) => themesAPI.create(data),
+    mutationFn: (data: { name: string; tags?: string }) => themesAPI.create(data, workspaceId),
     onSuccess: () => {
       invalidate();
       setShowAddForm(false);
@@ -77,7 +74,7 @@ export function ThemeManager({ workspaceId, workspaceName, onBack }: ThemeManage
 
   // Import
   const importMut = useMutation({
-    mutationFn: (content: string) => themesAPI.importConfig(content),
+    mutationFn: (content: string) => themesAPI.importConfig(content, workspaceId),
     onSuccess: () => {
       invalidate();
       setShowImport(false);
@@ -87,7 +84,7 @@ export function ThemeManager({ workspaceId, workspaceName, onBack }: ThemeManage
 
   // Export
   const exportMut = useMutation({
-    mutationFn: () => themesAPI.exportConfig(),
+    mutationFn: () => themesAPI.exportConfig(workspaceId),
     onSuccess: (res) => {
       const content = res.data?.content || '';
       const blob = new Blob([content], { type: 'text/markdown' });
@@ -103,7 +100,7 @@ export function ThemeManager({ workspaceId, workspaceName, onBack }: ThemeManage
   // AI Generate
   const aiGenerateMut = useMutation({
     mutationFn: (data: { topic: string; bucket_count: number }) =>
-      themesAPI.generateByAI(data.topic, data.bucket_count),
+      themesAPI.generateByAI(data.topic, data.bucket_count, workspaceId),
     onSuccess: (res) => {
       const content = res.data?.content || '';
       setAiPreview(content);
@@ -112,7 +109,7 @@ export function ThemeManager({ workspaceId, workspaceName, onBack }: ThemeManage
 
   // AI Generate → confirm import
   const aiImportMut = useMutation({
-    mutationFn: (content: string) => themesAPI.importConfig(content),
+    mutationFn: (content: string) => themesAPI.importConfig(content, workspaceId),
     onSuccess: () => {
       invalidate();
       setShowAIGenerate(false);

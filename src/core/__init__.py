@@ -18,7 +18,7 @@ from .utils import (
     format_implementation_path,
 )
 from .pdf_extractor import extract_pdf_text
-from .llm_client import init_client, call_llm, test_api_connection, clean_json_response
+from .llm_client import init_client, call_llm, test_api_connection, clean_json_response  # CLI sync only
 from .csv_handler import init_csv, append_to_csv
 
 __all__ = [

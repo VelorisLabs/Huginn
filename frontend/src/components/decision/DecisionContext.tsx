@@ -40,8 +40,6 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
 
     const makeDecision = useCallback(async (paperId: number, type: DecisionType, reason?: string) => {
         // 1. Optimistic UI update
-        console.log(`Decision made for ${paperId}: ${type} (${reason})`);
-
         // Update local state and storage
         setDecisions(prev => {
             const next = { ...prev, [paperId]: type };
@@ -66,8 +64,6 @@ export function DecisionProvider({ children }: { children: ReactNode }) {
 
     const undoLastDecision = useCallback(async () => {
         if (!lastDecision) return;
-
-        console.log(`Undoing decision for ${lastDecision.paperId}`);
 
         // Revert local state
         setDecisions(prev => {

@@ -79,7 +79,7 @@ api.interceptors.response.use(
 
 // 认证 API
 export const authAPI = {
-  register: (data: { email: string; username: string; password: string }) =>
+  register: (data: { email: string; username: string; password: string; invite_code: string }) =>
     api.post('/auth/register', data),
   
   login: (data: { email: string; password: string }) =>
@@ -90,6 +90,10 @@ export const authAPI = {
   refresh: () => api.post('/auth/refresh', null, { withCredentials: true }),
   
   getMe: () => api.get('/auth/me'),
+  
+  getCredits: () => api.get('/auth/credits'),
+  
+  getCreditTransactions: () => api.get('/auth/credits/transactions'),
 };
 
 // 上传 API
@@ -107,16 +111,6 @@ export const uploadAPI = {
   // 查询任务状态
   getTaskStatus: (taskId: string) => {
     return api.get(`/upload/task/${taskId}`);
-  },
-  
-  // 同步上传（兼容旧接口）
-  uploadPDF: (file: File, themeId: number) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('theme_id', themeId.toString());
-    return api.post('/upload/pdf', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
   },
   
   uploadMultiplePDFs: (files: File[], themeId: number) => {
@@ -199,12 +193,13 @@ export type ClusteringResults = {
 // 主题 API
 export const themesAPI = {
   list: () => api.get('/themes'),
-  get: (id: number) => api.get(`/themes/${id}`),
   create: (data: { name: string; tags?: string }) => api.post('/themes', data),
   update: (id: number, data: { name?: string; tags?: string; order?: number }) => api.put(`/themes/${id}`, data),
   delete: (id: number) => api.delete(`/themes/${id}`),
   importConfig: (content: string) => api.post('/themes/import', { content }),
   exportConfig: () => api.get('/themes/export'),
+  generateByAI: (topic: string, bucket_count?: number) =>
+    api.post('/themes/generate', { topic, bucket_count: bucket_count || 8 }),
 };
 
 export type ThemeItem = {
@@ -270,6 +265,26 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// 管理员 API
+export const adminAPI = {
+  // 邀请码
+  createInviteCode: (data: { credits?: number; max_uses?: number; note?: string }) =>
+    api.post('/admin/invite-codes', data),
+  listInviteCodes: () => api.get('/admin/invite-codes'),
+  toggleInviteCode: (id: number) => api.patch(`/admin/invite-codes/${id}`),
+  deleteInviteCode: (id: number) => api.delete(`/admin/invite-codes/${id}`),
+
+  // 用户管理
+  listUsers: () => api.get('/admin/users'),
+  adjustCredits: (userId: number, data: { amount: number; description?: string }) =>
+    api.post(`/admin/users/${userId}/credits`, data),
+  getUserTransactions: (userId: number) => api.get(`/admin/users/${userId}/credits/transactions`),
+  toggleUser: (userId: number) => api.patch(`/admin/users/${userId}/toggle`),
+  deleteUser: (userId: number) => api.delete(`/admin/users/${userId}`),
+  resetUser: (userId: number, data: { amount: number; description?: string }) =>
+    api.post(`/admin/users/${userId}/reset`, data),
+};
 
 // 导出 API
 export const exportAPI = {

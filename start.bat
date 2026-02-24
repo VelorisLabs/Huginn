@@ -96,7 +96,7 @@ echo.
 echo   Frontend : http://localhost:4321
 echo   API Docs : http://localhost:8000/api/v1/docs
 echo.
-echo   Test account: test@example.com / test123
+echo   Test account: test@huginn.com / test123
 echo.
 
 :: Open browser

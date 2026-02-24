@@ -10,11 +10,11 @@ from sqlalchemy import select
 
 
 async def create_test_user():
-    """创建测试用户 test@example.com / test123"""
+    """创建测试用户 test@huginn.com / test123"""
     async with async_session_maker() as session:
         # 检查用户是否已存在
         result = await session.execute(
-            select(User).where(User.email == "test@example.com")
+            select(User).where(User.email == "test@huginn.com")
         )
         existing_user = result.scalar_one_or_none()
         
@@ -26,7 +26,7 @@ async def create_test_user():
         
         # 创建新用户
         test_user = User(
-            email="test@example.com",
+            email="test@huginn.com",
             username="test",
             hashed_password=get_password_hash("test123")
         )

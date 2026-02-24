@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制项目源码
 COPY api/ ./api/
 COPY src/ ./src/
+COPY shared/ ./shared/
 COPY config/ ./config/
 
 # 创建必要的目录

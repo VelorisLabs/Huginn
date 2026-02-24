@@ -6,26 +6,17 @@ from typing import Optional, Dict, List
 from datetime import datetime
 
 
-class PaperBase(BaseModel):
-    """论文基础信息"""
-    title: str
-    authors: Optional[str] = None
-    year: Optional[int] = None
-    venue: Optional[str] = None
-    keywords: Optional[str] = None
-
-
-class PaperCreate(PaperBase):
-    """创建论文"""
-    pass
-
-
-class PaperInDB(PaperBase):
+class PaperInDB(BaseModel):
     """数据库中的论文"""
     id: int
     user_id: int
     theme_id: int
     theme_name: str
+    title: str
+    authors: Optional[str] = None
+    year: Optional[int] = None
+    venue: Optional[str] = None
+    keywords: Optional[str] = None
     domain_tags: Optional[str] = None
     paper_type: Optional[str] = None
     problem: Optional[str] = None
@@ -44,40 +35,6 @@ class PaperInDB(PaperBase):
     cluster_id: Optional[int] = None
     cluster_topic: Optional[str] = None
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
-class TaskCreate(BaseModel):
-    """创建任务"""
-    task_type: str = Field(..., pattern="^(extract|rescore|cluster)$")
-    config: Optional[Dict] = None
-
-
-class TaskProgress(BaseModel):
-    """任务进度"""
-    task_id: str
-    status: str
-    progress: int = Field(..., ge=0, le=100)
-    current_step: Optional[str] = None
-    total_items: Optional[int] = None
-    processed_items: Optional[int] = None
-
-
-class TaskInDB(BaseModel):
-    """数据库中的任务"""
-    id: int
-    task_id: str
-    task_type: str
-    status: str
-    progress: int
-    current_step: Optional[str] = None
-    result: Optional[Dict] = None
-    error_message: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True

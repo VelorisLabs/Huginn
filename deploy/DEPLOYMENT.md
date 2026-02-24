@@ -46,7 +46,7 @@ sudo chown $USER:$USER /opt/paper-analysis
 # 克隆代码
 cd /opt/paper-analysis
 git clone <your-repo-url> .
-cd web
+cd deploy
 ```
 
 ### 3. 配置环境变量
@@ -239,11 +239,11 @@ DATE=$(date +%Y%m%d_%H%M%S)
 mkdir -p $BACKUP_DIR
 
 # 备份数据库
-docker cp paper-backend:/app/data/paper_analysis.db \
+docker cp huginn-backend:/app/data/paper_analysis.db \
     $BACKUP_DIR/db_$DATE.db
 
 # 备份上传文件
-docker cp paper-backend:/app/uploads \
+docker cp huginn-backend:/app/uploads \
     $BACKUP_DIR/uploads_$DATE
 
 # 压缩
@@ -292,8 +292,7 @@ docker-compose logs -f
 
 # 特定服务日志
 docker-compose logs -f backend
-docker-compose logs -f celery
-docker-compose logs -f redis
+docker-compose logs -f nginx
 
 # 最近 100 行
 docker-compose logs --tail=100
@@ -323,43 +322,17 @@ docker-compose up -d --build
 
 ## 🐛 故障排查
 
-### 问题 1: 无法连接到 Redis
-
-```bash
-# 检查 Redis 容器
-docker-compose ps redis
-docker-compose logs redis
-
-# 重启 Redis
-docker-compose restart redis
-```
-
-### 问题 2: Celery 任务不执行
-
-```bash
-# 检查 Celery Worker
-docker-compose logs celery
-
-# 查看任务队列
-docker exec -it paper-redis redis-cli
-> KEYS celery*
-> LLEN celery
-
-# 重启 Celery
-docker-compose restart celery
-```
-
-### 问题 3: 数据库锁定
+### 问题 1: 数据库锁定
 
 ```bash
 # 进入容器
-docker exec -it paper-backend bash
+docker exec -it huginn-backend bash
 
 # 检查数据库
 sqlite3 data/paper_analysis.db "PRAGMA integrity_check;"
 
 # 如果损坏，从备份恢复
-docker cp /opt/paper-analysis/backups/latest.db paper-backend:/app/data/paper_analysis.db
+docker cp /opt/paper-analysis/backups/latest.db huginn-backend:/app/data/paper_analysis.db
 docker-compose restart backend
 ```
 
@@ -403,25 +376,7 @@ sudo systemctl reload nginx
 
 ## 📈 性能优化
 
-### 1. Redis 优化
-
-编辑 `docker-compose.yml`，添加 Redis 配置：
-
-```yaml
-redis:
-  command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-```
-
-### 2. Celery 并发
-
-调整 Worker 数量：
-
-```yaml
-celery:
-  command: celery -A app.tasks.celery_app worker --concurrency=4 --loglevel=info
-```
-
-### 3. 数据库优化
+### 1. 数据库优化
 
 切换到 PostgreSQL（生产推荐）：
 

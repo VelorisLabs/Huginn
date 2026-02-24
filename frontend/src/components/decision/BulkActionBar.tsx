@@ -1,4 +1,4 @@
-import { Check, Archive, X, Trash2 } from 'lucide-react';
+import { Check, Archive, X } from 'lucide-react';
 import { useDecision } from './DecisionContext';
 
 interface BulkActionBarProps {

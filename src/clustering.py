@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # 配置
 # ============================================================
 from .core.config import CSV_DIR
+from shared.clustering_core import STOPWORDS, tokenize, find_best_k, generate_topic_label
 
 INPUT_CSV = CSV_DIR / "_all_papers.csv"
 OUTPUT_DIR = CSV_DIR / "clustering_analysis"
@@ -32,17 +33,6 @@ TEXT_FIELDS = ['关键词', '研究问题', '核心结论', '主要贡献']
 # 聚类参数
 MIN_K = 3  # 最小聚类数
 MAX_K = 8  # 最大聚类数
-
-# 停用词（常见无意义词）
-STOPWORDS = {
-    '的', '了', '是', '在', '和', '与', '等', '对', '为', '以', '及', '或',
-    '中', '上', '下', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
-    '个', '种', '类', '方面', '问题', '研究', '分析', '探讨', '论文', '文章',
-    '通过', '进行', '提出', '基于', '采用', '针对', '结合', '围绕', '关于',
-    '主要', '其中', '同时', '并且', '因此', '然而', '但是', '如何', '什么',
-    '可以', '需要', '应该', '能够', '具有', '存在', '包括', '涉及', '体现',
-    '不同', '相关', '重要', '有效', '积极', '显著', '明显', '充分', '进一步',
-}
 
 
 # ============================================================
@@ -57,67 +47,10 @@ def preprocess_text(row):
     return ' '.join(text_parts)
 
 
-def tokenize(text):
-    """jieba分词 + 过滤停用词和短词"""
-    words = jieba.lcut(text)
-    # 过滤：长度<2、纯数字、停用词
-    filtered = [w for w in words
-                if len(w) >= 2
-                and not w.isdigit()
-                and w not in STOPWORDS]
-    return filtered
-
 
 # ============================================================
 # 聚类分析核心
 # ============================================================
-def find_best_k(tfidf_matrix, min_k=None, max_k=None):
-    """使用轮廓系数自动选择最优聚类数（根据数据集大小动态调整范围）"""
-    n_samples = tfidf_matrix.shape[0]
-    
-    if min_k is None:
-        min_k = max(2, min(MIN_K, n_samples - 1))
-    if max_k is None:
-        max_k = max(min_k, min(MAX_K, n_samples - 1))
-    
-    if n_samples < 3:
-        return 1
-    
-    best_k = min_k
-    best_score = -1
-    scores = {}
-
-    for k in range(min_k, max_k + 1):
-        if k >= n_samples:
-            break
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-        labels = kmeans.fit_predict(tfidf_matrix)
-        score = silhouette_score(tfidf_matrix, labels)
-        scores[k] = score
-        if score > best_score:
-            best_score = score
-            best_k = k
-
-    logger.info("Silhouette score analysis:")
-    for k, score in scores.items():
-        marker = " <- BEST" if k == best_k else ""
-        logger.info("  K=%d: %.4f%s", k, score, marker)
-
-    return best_k
-
-
-def generate_topic_label(cluster_indices, df, vectorizer, tfidf_matrix, top_n=5):
-    """基于聚类内论文的高频词生成话题标签"""
-    # 方法1：基于TF-IDF权重
-    cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
-    mean_tfidf = cluster_tfidf.mean(axis=0)
-
-    feature_names = vectorizer.get_feature_names_out()
-    top_indices = mean_tfidf.argsort()[-top_n:][::-1]
-    top_words = [feature_names[i] for i in top_indices]
-
-    return top_words
-
 
 # ============================================================
 # 输出生成
@@ -220,7 +153,7 @@ def main():
     for cluster_id in range(best_k):
         cluster_indices = np.where(labels == cluster_id)[0]
         topic_labels[cluster_id] = generate_topic_label(
-            cluster_indices, df, vectorizer, tfidf_matrix
+            cluster_indices, vectorizer, tfidf_matrix
         )
         logger.info("  Topic %d: %s", cluster_id + 1, ', '.join(topic_labels[cluster_id][:3]))
 

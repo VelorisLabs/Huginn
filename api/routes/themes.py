@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 from typing import List
-import re
 
 from ..core.deps import get_current_user, get_db, get_current_workspace
 from ..models.user import User
@@ -17,8 +16,13 @@ from ..schemas.theme import (
     ThemeUpdate,
     ThemeResponse,
     ThemeBucketsImport,
-    ThemeBucketsExport
+    ThemeBucketsExport,
+    ThemeBucketsGenerate
 )
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -381,6 +385,94 @@ async def export_theme_buckets(
     
     content = generate_theme_buckets_md(themes)
     
+    return ThemeBucketsExport(
+        content=content,
+        filename="theme_buckets.md"
+    )
+
+
+@router.post("/generate", response_model=ThemeBucketsExport)
+async def generate_theme_buckets(
+    gen_data: ThemeBucketsGenerate,
+    current_user: User = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db)
+):
+    """AI 自动生成主题桶配置（基于工作区主题/研究领域）"""
+    from ..core.llm_client import async_call_llm, init_async_client
+    from ..core.credit_service import check_credits, deduct_credits
+    from ..models.credit import CreditType
+
+    # 积分检查与扣减
+    await check_credits(current_user, CreditType.PAPER_EXTRACT)
+    await deduct_credits(db, current_user, CreditType.PAPER_EXTRACT, f"AI生成主题桶: {gen_data.topic}")
+    await db.commit()
+
+    # 构造提示词
+    prompt = f"""你是一个学术研究领域的专家。请根据给定的研究领域，生成一份主题桶配置文件。
+
+研究领域：{gen_data.topic}
+要求生成 {gen_data.bucket_count} 个主题桶。
+
+输出格式要求（严格按照以下 Markdown 格式）：
+- 使用 ## 作为主题桶名称
+- 每个主题桶下用 - 列出 4-8 个相关的次级标签/关键词
+- 主题桶名称应该是该研究领域下的具体研究方向
+- 次级标签应该是该方向下的细分关键词，便于论文分类匹配
+
+以下是一个"教育管理"领域的参考示例：
+
+## 教育数智化与智能治理
+- 大数据
+- 人工智能
+- 教育数字化
+- 教育信息化
+- 数智素养
+- 智慧教育
+- 数字化转型
+
+## 教育治理与治理体系现代化
+- 教育治理体系
+- 管理体制
+- 治理能力现代化
+- 多元共治
+- 教育督导
+
+请根据"{gen_data.topic}"领域，生成 {gen_data.bucket_count} 个类似的主题桶。
+只输出 Markdown 内容，不要添加任何额外说明、代码块标记或前后缀。"""
+
+    try:
+        content = await async_call_llm(
+            prompt,
+            system_message="你是一个学术研究领域分类专家。请根据用户提供的研究领域，生成结构化的主题桶配置。只输出 Markdown 格式内容，不要添加代码块标记或额外说明。",
+            temperature=0.7,
+        )
+        # 清理可能的代码块标记
+        content = content.strip()
+        if content.startswith("```markdown"):
+            content = content[len("```markdown"):]
+        elif content.startswith("```md"):
+            content = content[len("```md"):]
+        elif content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+    except Exception as e:
+        logger.error(f"AI 生成主题桶失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI 生成失败: {str(e)}"
+        )
+
+    # 验证生成的内容是否可解析
+    parsed = parse_theme_buckets_md(content)
+    if not parsed:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="AI 生成的内容格式不正确，请重试"
+        )
+
     return ThemeBucketsExport(
         content=content,
         filename="theme_buckets.md"

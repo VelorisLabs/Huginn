@@ -25,6 +25,7 @@ from typing import Dict, List, Tuple
 # 配置
 # ============================================================
 from .core.config import BASE_DIR, CSV_DIR, WEIGHTS_FILE
+from shared.scoring import compute_weighted_score
 
 P0_CSV_PATH = CSV_DIR / "_all_papers.csv"
 WEIGHTS_CONFIG_PATH = WEIGHTS_FILE
@@ -112,15 +113,11 @@ def load_p0_csv() -> List[PaperRecord]:
 
 def calculate_scenario_score(paper: PaperRecord, weights: Dict) -> ScenarioScore:
     """计算单篇论文在某个场景下的综合评分"""
-    overall = (
-        paper.rigor * weights['rigor'] +
-        paper.innovation * weights['innovation'] +
-        paper.practicality * weights['practicality'] +
-        paper.impact * weights['impact'] +
-        paper.readability * weights['readability']
+    overall = compute_weighted_score(
+        paper.rigor, paper.innovation, paper.practicality,
+        paper.impact, paper.readability, weights
     )
-
-    # 四舍五入到一位小数
+    # Round to 1 decimal for CLI display
     overall = round(overall, 1)
     level = score_to_level(overall)
 

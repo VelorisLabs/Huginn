@@ -17,6 +17,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    credits = Column(Integer, default=0, nullable=False)  # 积分余额
     active_workspace_id = Column(Integer, nullable=True)  # 当前激活的工作区 ID
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

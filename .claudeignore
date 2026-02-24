@@ -1,0 +1,34 @@
+# ── Python ──────────────────────────────────────────────────
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/uv.lock
+backend/logs/
+**/__pycache__/
+*.pyc
+
+# ── Node ─────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/package-lock.json
+frontend/tsconfig.tsbuildinfo
+
+# ── 大型数据文件 ──────────────────────────────────────────────
+backend/merged_catalog.json
+backend/scripts/merged_catalog.json
+backend/scripts/diagnose_results.json
+backend/scripts/screenshots/
+frontend/src/lib/rss-catalog.ts
+
+# ── 敏感信息 ─────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Git / IDE ────────────────────────────────────────────────
+.git/
+.idea/
+.vscode/
+*.log

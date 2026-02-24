@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { uploadAPI, themesAPI, type ThemeItem } from '@/lib/api';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, RefreshCw, FileText, Upload, FolderOpen } from 'lucide-react';
+import { AxiosError } from 'axios';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, RefreshCw, FileText, Upload, FolderOpen, Coins, Archive } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
 
 interface IngestItem {
     id: string; // Task ID or temp ID
@@ -18,6 +20,8 @@ export function IngestManager() {
     const [items, setItems] = useState<IngestItem[]>([]);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [selectedThemeId, setSelectedThemeId] = useState<number | null>(null);
+    const [creditError, setCreditError] = useState<string | null>(null);
+    const { user, checkAuth } = useAuthStore();
 
     const { data: themesRes, isLoading: themesLoading } = useQuery({
         queryKey: ['themes'],
@@ -53,7 +57,7 @@ export function IngestManager() {
         return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
     }, [items, queryClient]);
 
-    // Upload Mutation
+    // Upload Mutation (PDF)
     const uploadMutation = useMutation({
         mutationFn: async (file: File) => {
             if (!selectedThemeId) throw new Error('请先选择主题桶');
@@ -61,17 +65,74 @@ export function IngestManager() {
             return res.data;
         },
         onSuccess: (data, file) => {
+            checkAuth();
+            setCreditError(null);
             const taskId = data.task_id;
             setItems(prev => prev.map(item =>
                 item.fileName === file.name && item.status === 'uploading'
-                    ? { ...item, id: taskId, status: 'processing', progress: 10, message: '正在分析中...' }
+                    ? { ...item, id: taskId, status: 'processing', progress: 10, message: `正在分析中… (-${data.credits_used || 1} 积分)` }
                     : item
             ));
         },
         onError: (_err, file) => {
+            const axErr = _err instanceof AxiosError ? _err : null;
+            const status = axErr?.response?.status;
+            const detail = axErr?.response?.data?.detail;
+
+            if (status === 402 && detail) {
+                const msg = typeof detail === 'object'
+                    ? `积分不足：需要 ${detail.required} 积分，当前余额 ${detail.current}`
+                    : String(detail);
+                setCreditError(msg);
+            }
+
             setItems(prev => prev.map(item =>
                 item.fileName === file.name
-                    ? { ...item, status: 'failed', message: '上传失败' }
+                    ? { ...item, status: 'failed', message: status === 402 ? '积分不足' : '上传失败' }
+                    : item
+            ));
+        },
+    });
+
+    // ZIP Upload Mutation
+    const zipMutation = useMutation({
+        mutationFn: async (file: File) => {
+            if (!selectedThemeId) throw new Error('请先选择主题桶');
+            const res = await uploadAPI.uploadZip(file, selectedThemeId);
+            return res.data;
+        },
+        onSuccess: (data: any[], file) => {
+            checkAuth();
+            setCreditError(null);
+            // Replace the ZIP placeholder with entries for each extracted PDF
+            setItems(prev => {
+                const without = prev.filter(i => !(i.fileName === file.name && i.status === 'uploading'));
+                const newEntries: IngestItem[] = data.map((r: any) => ({
+                    id: r.task_id || `zip-${Date.now()}-${r.filename}`,
+                    fileName: r.filename,
+                    status: 'completed' as const,
+                    progress: 100,
+                    message: '从 ZIP 解压并分析完成',
+                }));
+                return [...newEntries, ...without];
+            });
+            queryClient.invalidateQueries({ queryKey: ['papers'] });
+        },
+        onError: (_err, file) => {
+            const axErr = _err instanceof AxiosError ? _err : null;
+            const status = axErr?.response?.status;
+            const detail = axErr?.response?.data?.detail;
+
+            if (status === 402 && detail) {
+                const msg = typeof detail === 'object'
+                    ? `积分不足：需要 ${detail.required} 积分，当前余额 ${detail.current}`
+                    : String(detail);
+                setCreditError(msg);
+            }
+
+            setItems(prev => prev.map(item =>
+                item.fileName === file.name
+                    ? { ...item, status: 'failed', message: status === 402 ? '积分不足' : 'ZIP 上传失败' }
                     : item
             ));
         },
@@ -85,12 +146,18 @@ export function IngestManager() {
             progress: 0,
         }));
         setItems(prev => [...newItems, ...prev]);
-        acceptedFiles.forEach(file => uploadMutation.mutate(file));
-    }, [uploadMutation]);
+        acceptedFiles.forEach(file => {
+            if (file.name.endsWith('.zip')) {
+                zipMutation.mutate(file);
+            } else {
+                uploadMutation.mutate(file);
+            }
+        });
+    }, [uploadMutation, zipMutation]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: { 'application/pdf': ['.pdf'] },
+        accept: { 'application/pdf': ['.pdf'], 'application/zip': ['.zip'] },
         multiple: true,
         disabled: !selectedThemeId,
     });
@@ -139,6 +206,22 @@ export function IngestManager() {
                 )}
             </div>
 
+            {/* Credit Error Banner */}
+            {creditError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                    <Coins className="w-4 h-4 shrink-0 text-red-500" />
+                    <span>{creditError}</span>
+                    <button onClick={() => setCreditError(null)} className="ml-auto text-red-400 hover:text-red-600 text-xs font-medium">关闭</button>
+                </div>
+            )}
+
+            {/* Credit Cost Hint */}
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50/80 border border-amber-100 rounded-xl">
+                <Coins className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-xs text-amber-700">每上传一篇论文消耗 <strong>1 积分</strong>（AI 提取分析），精读分析额外消耗 <strong>1 积分</strong></span>
+                <span className="ml-auto text-xs font-semibold text-amber-600">余额: {user?.credits ?? 0}</span>
+            </div>
+
             {/* Dropzone */}
             <div
                 {...getRootProps()}
@@ -159,19 +242,26 @@ export function IngestManager() {
                     </div>
                     <div>
                         <p className="text-base font-semibold text-slate-700">
-                            {isDragActive ? '松开鼠标开始上传' : '拖拽 PDF 文件到此处'}
+                            {isDragActive ? '松开鼠标开始上传' : '拖拽 PDF 或 ZIP 文件到此处'}
                         </p>
                         <p className="text-xs text-slate-400 mt-1">
                             {selectedThemeId
-                                ? `上传到主题：${selectedTheme?.name || ''}，AI 将自动分析每篇论文`
+                                ? `上传到主题：${selectedTheme?.name || ''}，支持 PDF 和 ZIP 压缩包`
                                 : '请先在上方选择目标主题桶'}
                         </p>
                     </div>
                     {!isDragActive && (
-                        <button type="button" className="btn-secondary text-sm mt-2">
-                            <FileText className="w-4 h-4" />
-                            选择文件
-                        </button>
+                        <div className="flex items-center gap-2 justify-center mt-2">
+                            <button type="button" className="btn-secondary text-sm">
+                                <FileText className="w-4 h-4" />
+                                选择 PDF
+                            </button>
+                            <span className="text-xs text-slate-300">或</span>
+                            <button type="button" className="btn-secondary text-sm">
+                                <Archive className="w-4 h-4" />
+                                选择 ZIP
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

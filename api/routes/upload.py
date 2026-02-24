@@ -25,29 +25,19 @@ from ..schemas.paper import UploadResponse
 
 from ..core.pdf_extractor import extract_pdf_text
 from ..core.llm_client import async_call_llm, init_async_client, clean_json_response
+from ..core.credit_service import check_credits, deduct_credits
+from ..core.config import load_scenario_weights
+from ..models.credit import CreditType
+from shared.scoring import compute_weighted_score
 
 logger = logging.getLogger(__name__)
 
 # ── 场景评分计算 ──
 
-_SCENARIO_WEIGHTS: dict | None = None
-
-def _load_scenario_weights() -> dict:
-    """加载 config/scenario_weights.json 中的场景权重"""
-    global _SCENARIO_WEIGHTS
-    if _SCENARIO_WEIGHTS is None:
-        weights_file = Path(__file__).resolve().parent.parent.parent / "config" / "scenario_weights.json"
-        if weights_file.exists():
-            with open(weights_file, "r", encoding="utf-8") as f:
-                _SCENARIO_WEIGHTS = json.load(f)
-        else:
-            _SCENARIO_WEIGHTS = {}
-    return _SCENARIO_WEIGHTS
-
 
 def _compute_scenario_scores(scores: dict) -> dict | None:
     """根据五维分数和场景权重计算各场景加权评分"""
-    cfg = _load_scenario_weights()
+    cfg = load_scenario_weights()
     scenarios = cfg.get("scenarios", {})
     if not scenarios:
         return None
@@ -61,84 +51,61 @@ def _compute_scenario_scores(scores: dict) -> dict | None:
     result = {}
     for name, sc in scenarios.items():
         w = sc.get("weights", {})
-        weighted = (
-            rigor * w.get("rigor", 0)
-            + innovation * w.get("innovation", 0)
-            + practicality * w.get("practicality", 0)
-            + impact * w.get("impact", 0)
-            + readability * w.get("readability", 0)
-        )
-        result[name] = round(weighted, 2)
+        result[name] = compute_weighted_score(rigor, innovation, practicality, impact, readability, w)
     return result if result else None
 
 router = APIRouter(prefix="/upload", tags=["文件上传"])
 
 
+def _build_paper_model(paper_data: dict, user_id: int, workspace_id: int, theme_id: int, theme_name: str, filename: str, file_path: Path) -> Paper:
+    """根据 LLM 解析结果构建 Paper ORM 对象（共用逻辑，消除重复）"""
+    title = _to_text(paper_data.get("title")) or filename
+    authors = _to_text(paper_data.get("authors"))
+    if isinstance(paper_data.get("authors"), list):
+        authors = _to_csv(paper_data.get("authors"))
+
+    return Paper(
+        user_id=user_id,
+        workspace_id=workspace_id,
+        theme_id=theme_id,
+        theme_name=theme_name,
+        title=title,
+        authors=authors,
+        year=_to_int(paper_data.get("year")),
+        venue=_to_text(paper_data.get("venue")),
+        keywords=_to_csv(paper_data.get("keywords")),
+        domain_tags=_to_csv(paper_data.get("domain_tags")),
+        paper_type=_to_text(paper_data.get("paper_type")),
+        problem=_to_text(paper_data.get("problem")),
+        methodology=_to_text(paper_data.get("methodology")),
+        conclusion=_to_text(paper_data.get("conclusion")),
+        contribution=_to_text(paper_data.get("contribution")),
+        implementation_path=_format_implementation_path(paper_data.get("implementation_path")),
+        score_rigor=paper_data.get("scores", {}).get("rigor"),
+        score_innovation=paper_data.get("scores", {}).get("innovation"),
+        score_practicality=paper_data.get("scores", {}).get("practicality"),
+        score_impact=paper_data.get("scores", {}).get("impact"),
+        score_readability=paper_data.get("scores", {}).get("readability"),
+        overall_score=paper_data.get("scores", {}).get("overall"),
+        scenario_scores=_compute_scenario_scores(paper_data.get("scores", {})),
+        file_path=str(file_path),
+        original_filename=filename
+    )
+
+
 async def _process_pdf_background_async(task_id: str, file_path: Path, user_id: int, workspace_id: int, theme_id: int, theme_name: str, filename: str):
     """后台异步处理 PDF（在 asyncio 事件循环中运行，无需线程池）"""
     try:
-        # 更新进度：开始提取
         task_manager.update_task(task_id, progress=10, current_step="正在提取PDF文本...")
-        
-        # 1. 提取 PDF 文本（CPU 密集，放到线程避免阻塞事件循环）
-        pdf_text = await asyncio.to_thread(extract_pdf_text, file_path)
-        logger.info(f"PDF 提取完成，文本长度: {len(pdf_text)}")
-        
-        # 更新进度：调用LLM
         task_manager.update_task(task_id, progress=20, current_step="正在AI分析论文内容...")
-        
-        # 2. 读取 Prompt 模板
-        with open(settings.PROMPT_FILE, 'r', encoding='utf-8') as f:
-            prompt_template = f.read()
-        
-        full_prompt = f"{prompt_template}\n\n论文内容：\n{pdf_text}"
-        
-        # 3. 异步调用 LLM（非阻塞，直接 await）
         task_manager.update_task(task_id, progress=30, current_step="AI分析中（预计1-2分钟）...")
-        response = await async_call_llm(full_prompt)
-        clean_response = clean_json_response(response)
-        
-        # 更新进度：解析结果
+
+        paper_data = await _async_extract_and_analyze_pdf(file_path)
+
         task_manager.update_task(task_id, progress=80, current_step="正在保存分析结果...")
-        
-        # 4. 解析 JSON
-        paper_data = json.loads(clean_response)
-        logger.info(f"解析完成，标题: {paper_data.get('title', 'N/A')}")
-        
-        # 5. 直接使用 async session 保存到数据库（原生异步，无需事件循环黑科技）
+
         async with async_session_maker() as session:
-            title = _to_text(paper_data.get("title")) or filename
-            authors = _to_text(paper_data.get("authors"))
-            if isinstance(paper_data.get("authors"), list):
-                authors = _to_csv(paper_data.get("authors"))
-            
-            paper = Paper(
-                user_id=user_id,
-                workspace_id=workspace_id,
-                theme_id=theme_id,
-                theme_name=theme_name,
-                title=title,
-                authors=authors,
-                year=_to_int(paper_data.get("year")),
-                venue=_to_text(paper_data.get("venue")),
-                keywords=_to_csv(paper_data.get("keywords")),
-                domain_tags=_to_csv(paper_data.get("domain_tags")),
-                paper_type=_to_text(paper_data.get("paper_type")),
-                problem=_to_text(paper_data.get("problem")),
-                methodology=_to_text(paper_data.get("methodology")),
-                conclusion=_to_text(paper_data.get("conclusion")),
-                contribution=_to_text(paper_data.get("contribution")),
-                implementation_path=_format_implementation_path(paper_data.get("implementation_path")),
-                score_rigor=paper_data.get("scores", {}).get("rigor"),
-                score_innovation=paper_data.get("scores", {}).get("innovation"),
-                score_practicality=paper_data.get("scores", {}).get("practicality"),
-                score_impact=paper_data.get("scores", {}).get("impact"),
-                score_readability=paper_data.get("scores", {}).get("readability"),
-                overall_score=paper_data.get("scores", {}).get("overall"),
-                scenario_scores=_compute_scenario_scores(paper_data.get("scores", {})),
-                file_path=str(file_path),
-                original_filename=filename
-            )
+            paper = _build_paper_model(paper_data, user_id, workspace_id, theme_id, theme_name, filename, file_path)
             session.add(paper)
             await session.commit()
             await session.refresh(paper)
@@ -185,7 +152,7 @@ def _format_implementation_path(value) -> str | None:
         # 尝试解析JSON字符串
         try:
             value = json.loads(value)
-        except:
+        except (json.JSONDecodeError, ValueError, TypeError):
             return value
     
     if not isinstance(value, dict):
@@ -351,40 +318,8 @@ async def process_pdf_async(file_path: Path, user_id: int, workspace_id: int, th
         logger.error(f"PDF 处理失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"PDF 处理失败: {str(e)}")
     
-    # 5. 保存到数据库（异步操作）
     try:
-        title = _to_text(paper_data.get("title")) or filename
-        authors = _to_text(paper_data.get("authors"))
-        if isinstance(paper_data.get("authors"), list):
-            authors = _to_csv(paper_data.get("authors"))
-
-        paper = Paper(
-            user_id=user_id,
-            workspace_id=workspace_id,
-            theme_id=theme_id,
-            theme_name=theme_name,
-            title=title,
-            authors=authors,
-            year=_to_int(paper_data.get("year")),
-            venue=_to_text(paper_data.get("venue")),
-            keywords=_to_csv(paper_data.get("keywords")),
-            domain_tags=_to_csv(paper_data.get("domain_tags")),
-            paper_type=_to_text(paper_data.get("paper_type")),
-            problem=_to_text(paper_data.get("problem")),
-            methodology=_to_text(paper_data.get("methodology")),
-            conclusion=_to_text(paper_data.get("conclusion")),
-            contribution=_to_text(paper_data.get("contribution")),
-            implementation_path=_format_implementation_path(paper_data.get("implementation_path")),
-            score_rigor=paper_data.get("scores", {}).get("rigor"),
-            score_innovation=paper_data.get("scores", {}).get("innovation"),
-            score_practicality=paper_data.get("scores", {}).get("practicality"),
-            score_impact=paper_data.get("scores", {}).get("impact"),
-            score_readability=paper_data.get("scores", {}).get("readability"),
-            overall_score=paper_data.get("scores", {}).get("overall"),
-            scenario_scores=_compute_scenario_scores(paper_data.get("scores", {})),
-            file_path=str(file_path),
-            original_filename=filename
-        )
+        paper = _build_paper_model(paper_data, user_id, workspace_id, theme_id, theme_name, filename, file_path)
         db.add(paper)
         await db.commit()
         await db.refresh(paper)
@@ -405,6 +340,9 @@ async def upload_pdf_async(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     """上传单个 PDF 文件（异步模式）- 立即返回task_id，后台处理"""
+    # 积分检查
+    await check_credits(current_user, CreditType.PAPER_EXTRACT)
+    
     # 验证主题
     result = await db.execute(
         select(Theme).where(Theme.id == theme_id, Theme.user_id == current_user.id)
@@ -425,6 +363,10 @@ async def upload_pdf_async(
         file_path.unlink(missing_ok=True)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件内容不是有效的 PDF 格式")
     
+    # 扣减积分（提前扣减，防止并发超额提交）
+    await deduct_credits(db, current_user, CreditType.PAPER_EXTRACT, f"上传论文: {file.filename}")
+    await db.commit()
+    
     # 创建后台任务（纯异步，无线程池）
     task_id = task_manager.create_task()
     task_manager.submit_async_task(
@@ -438,12 +380,17 @@ async def upload_pdf_async(
         "task_id": task_id,
         "filename": file.filename,
         "status": "processing",
-        "message": "文件已提交，正在后台处理"
+        "message": "文件已提交，正在后台处理",
+        "credits_used": 1,
+        "credits_remaining": current_user.credits,
     }
 
 
 @router.get("/task/{task_id}")
-async def get_task_status(task_id: str):
+async def get_task_status(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
     """查询任务状态"""
     task = task_manager.get_task(task_id)
     if not task:
@@ -468,6 +415,9 @@ async def upload_pdf(
     workspace: Workspace = Depends(get_current_workspace),
 ):
     """上传单个 PDF 文件（必须指定主题）- 同步处理模式（兼容旧接口）"""
+    # 积分检查
+    await check_credits(current_user, CreditType.PAPER_EXTRACT)
+    
     # 验证主题是否存在且属于当前用户
     result = await db.execute(
         select(Theme).where(
@@ -499,6 +449,10 @@ async def upload_pdf(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="文件内容不是有效的 PDF 格式"
         )
+    
+    # 扣减积分
+    await deduct_credits(db, current_user, CreditType.PAPER_EXTRACT, f"上传论文: {file.filename}")
+    await db.commit()
     
     try:
         # 异步处理 PDF（阻塞操作在线程池中运行）
@@ -557,6 +511,11 @@ async def upload_multiple_pdfs(
         # 验证文件类型
         if not file.filename.endswith('.pdf'):
             continue
+        
+        # 积分检查与扣减（每篇扣减）
+        await check_credits(current_user, CreditType.PAPER_EXTRACT)
+        await deduct_credits(db, current_user, CreditType.PAPER_EXTRACT, f"上传论文: {file.filename}")
+        await db.commit()
         
         # 保存文件
         file_path = await save_upload_file(file, current_user.id)
@@ -631,6 +590,11 @@ async def upload_zip(
     # 异步处理每个 PDF
     responses = []
     for pdf_file in pdf_files:
+        # 积分检查与扣减（每篇扣减）
+        await check_credits(current_user, CreditType.PAPER_EXTRACT)
+        await deduct_credits(db, current_user, CreditType.PAPER_EXTRACT, f"上传论文: {pdf_file.name}")
+        await db.commit()
+        
         try:
             paper_id = await process_pdf_async(
                 file_path=pdf_file,

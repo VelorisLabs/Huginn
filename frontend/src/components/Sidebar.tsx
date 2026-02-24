@@ -2,17 +2,19 @@ import { useState, useRef, useEffect } from 'react';
 import {
   LayoutDashboard, BarChart3, BookmarkCheck, Upload,
   ChevronLeft, ChevronRight, LogOut, Sparkles,
-  FolderKanban, ChevronDown, Plus, Settings2, Layers
+  FolderKanban, ChevronDown, Plus, Settings2, Layers, Coins, Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkspace } from './workspace/WorkspaceContext';
 
-export type TabKey = 'overview' | 'analysis' | 'clustering' | 'reading-list' | 'upload' | 'workspace-settings';
+export type TabKey = 'overview' | 'analysis' | 'clustering' | 'reading-list' | 'upload' | 'workspace-settings' | 'admin';
 
 interface SidebarProps {
   activeTab: TabKey;
   onTabChange: (tab: TabKey) => void;
   username?: string;
+  credits?: number;
+  isSuperuser?: boolean;
   onLogout: () => void;
 }
 
@@ -25,7 +27,7 @@ const NAV_ITEMS: { key: TabKey; label: string; icon: React.ElementType; badge?: 
   { key: 'workspace-settings', label: '工作区管理', icon: Settings2 },
 ];
 
-export function Sidebar({ activeTab, onTabChange, username, onLogout }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, username, credits, isSuperuser, onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [wsDropdownOpen, setWsDropdownOpen] = useState(false);
   const wsDropdownRef = useRef<HTMLDivElement>(null);
@@ -159,7 +161,7 @@ export function Sidebar({ activeTab, onTabChange, username, onLogout }: SidebarP
             </span>
           )}
         </div>
-        {NAV_ITEMS.map(({ key, label, icon: Icon, badge }) => {
+        {[...NAV_ITEMS, ...(isSuperuser ? [{ key: 'admin' as TabKey, label: '系统管理', icon: Shield, badge: undefined }] : [])].map(({ key, label, icon: Icon, badge }) => {
           const isActive = activeTab === key;
           return (
             <button
@@ -201,7 +203,10 @@ export function Sidebar({ activeTab, onTabChange, username, onLogout }: SidebarP
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-700 truncate">{username || 'User'}</p>
-              <p className="text-[11px] text-slate-400">研究者</p>
+              <div className="flex items-center gap-1">
+                <Coins className="w-3 h-3 text-amber-500" />
+                <p className="text-[11px] text-amber-600 font-medium">{credits ?? 0} 积分</p>
+              </div>
             </div>
           )}
           {!collapsed && (

@@ -3,7 +3,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { paperAPI, type Paper } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, FileText, Layers, TrendingUp, BookOpen, X, Settings2 } from 'lucide-react';
+import { Sparkles, ArrowRight, FileText, Layers, TrendingUp, BookOpen, X, Settings2, Shield, Download } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -20,7 +20,9 @@ import { AnalysisView } from './AnalysisView';
 import { PaperFullAnalysis } from './PaperFullAnalysis';
 import { ResearchFocus } from './ResearchFocus';
 import { WorkspaceManager } from './workspace/WorkspaceManager';
+import { AdminPanel } from './AdminPanel';
 import { ClusteringView } from './ClusteringView';
+import { ExportButton } from './ExportButton';
 
 const PAGE_META: Record<TabKey, { title: string; subtitle: string; icon: React.ElementType }> = {
   overview: { title: '研究态势概览', subtitle: '掌握你的研究库全貌，发现高价值论文', icon: Sparkles },
@@ -29,6 +31,7 @@ const PAGE_META: Record<TabKey, { title: string; subtitle: string; icon: React.E
   'reading-list': { title: '待读清单', subtitle: '收藏感兴趣的论文，系统管理阅读计划', icon: BookOpen },
   upload: { title: '文献入库', subtitle: '上传 PDF 文件，AI 自动分析并建立画像', icon: FileText },
   'workspace-settings': { title: '工作区管理', subtitle: '创建和配置工作区，管理主题桶和评分权重', icon: Settings2 },
+  admin: { title: '系统管理', subtitle: '管理用户、邀请码和积分系统', icon: Shield },
 };
 
 const pageVariants = {
@@ -254,6 +257,8 @@ export default function Dashboard() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           username={user?.username}
+          credits={user?.credits}
+          isSuperuser={user?.is_superuser}
           onLogout={logout}
         />
 
@@ -451,18 +456,21 @@ export default function Dashboard() {
                               : '按入库时间排序，点击查看速览'}
                           </p>
                         </div>
-                        {hasFilter ? (
-                          <button
-                            onClick={clearAllFilters}
-                            className="text-sm font-medium text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors"
-                          >
-                            清除筛选 <X className="w-3.5 h-3.5" />
-                          </button>
-                        ) : (
-                          <button className="text-sm font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors">
-                            查看全部 <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {hasFilter ? (
+                            <button
+                              onClick={clearAllFilters}
+                              className="text-sm font-medium text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors"
+                            >
+                              清除筛选 <X className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button className="text-sm font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1 transition-colors">
+                              查看全部 <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <ExportButton />
+                        </div>
                       </div>
                       <div className="p-2">
                         <PaperList
@@ -500,6 +508,10 @@ export default function Dashboard() {
 
                 {activeTab === 'workspace-settings' && (
                   <WorkspaceManager />
+                )}
+
+                {activeTab === 'admin' && (
+                  <AdminPanel />
                 )}
               </motion.div>
             </AnimatePresence>

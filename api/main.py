@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .core.config import settings
 from .core.database import init_db
-from .routes import auth, upload, papers, export, themes, workspaces, clustering
+from .routes import auth, upload, papers, export, themes, workspaces, clustering, admin
 
 # 初始化限流器
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
@@ -58,6 +58,7 @@ app.include_router(upload.router, prefix=settings.API_V1_STR)
 app.include_router(papers.router, prefix=settings.API_V1_STR)
 app.include_router(export.router, prefix=settings.API_V1_STR)
 app.include_router(clustering.router, prefix=settings.API_V1_STR)
+app.include_router(admin.router, prefix=f"{settings.API_V1_STR}/admin")
 
 
 @app.get("/")

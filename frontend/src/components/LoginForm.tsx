@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { AxiosError } from 'axios';
+import { extractApiError } from '@/lib/errorUtils';
 import { Sparkles, AlertCircle, Mail, Lock } from 'lucide-react';
 
 export default function LoginForm() {
@@ -19,17 +19,7 @@ export default function LoginForm() {
       await login(email, password);
       window.location.href = '/';
     } catch (err) {
-      let message: string;
-      if (err instanceof AxiosError) {
-        if (err.response?.status === 429) {
-          message = '登录尝试过于频繁，请稍后再试';
-        } else {
-          message = err.response?.data?.detail || '登录失败，请检查邮箱和密码';
-        }
-      } else {
-        message = '网络错误，请检查网络连接';
-      }
-      setError(message);
+      setError(extractApiError(err, '登录失败，请检查邮箱和密码'));
     } finally {
       setLoading(false);
     }
@@ -82,7 +72,7 @@ export default function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white transition-all duration-200 placeholder-slate-400 outline-none"
-                  placeholder="test@example.com"
+                  placeholder="test@huginn.com"
                 />
               </div>
             </div>
@@ -133,7 +123,7 @@ export default function LoginForm() {
         {import.meta.env.DEV && (
           <div className="mt-4 p-3 bg-white/80 backdrop-blur rounded-xl border border-slate-100 shadow-soft">
             <p className="text-[11px] text-slate-500 font-medium text-center">
-              [DEV] 测试账号: test@example.com / test123
+              [DEV] 测试账号: test@huginn.com / test123
             </p>
           </div>
         )}

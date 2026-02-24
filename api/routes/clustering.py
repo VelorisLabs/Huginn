@@ -16,23 +16,14 @@ from ..core.task_manager import task_manager, TaskStatus
 from ..models.user import User
 from ..models.paper import Paper
 from ..models.workspace import Workspace
+from shared.clustering_core import STOPWORDS, tokenize, find_best_k, generate_topic_label
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/clustering", tags=["聚类分析"])
 
 
-# ── 聚类核心逻辑（从 src/clustering.py 移植，适配 DB 数据） ──
-
-STOPWORDS = {
-    '的', '了', '是', '在', '和', '与', '等', '对', '为', '以', '及', '或',
-    '中', '上', '下', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
-    '个', '种', '类', '方面', '问题', '研究', '分析', '探讨', '论文', '文章',
-    '通过', '进行', '提出', '基于', '采用', '针对', '结合', '围绕', '关于',
-    '主要', '其中', '同时', '并且', '因此', '然而', '但是', '如何', '什么',
-    '可以', '需要', '应该', '能够', '具有', '存在', '包括', '涉及', '体现',
-    '不同', '相关', '重要', '有效', '积极', '显著', '明显', '充分', '进一步',
-}
+# ── 聚类核心逻辑（共享模块 + 本地适配） ──
 
 TEXT_FIELDS = ['keywords', 'problem', 'conclusion', 'contribution']
 
@@ -46,47 +37,6 @@ def _preprocess_paper(paper: Paper) -> str:
             parts.append(str(val))
     return ' '.join(parts)
 
-
-def _tokenize(text: str) -> list:
-    """jieba 分词 + 过滤停用词"""
-    import jieba
-    words = jieba.lcut(text)
-    return [w for w in words if len(w) >= 2 and not w.isdigit() and w not in STOPWORDS]
-
-
-def _find_best_k(tfidf_matrix, min_k=3, max_k=8):
-    """轮廓系数自动选择最优 K"""
-    from sklearn.cluster import KMeans
-    from sklearn.metrics import silhouette_score
-
-    n_samples = tfidf_matrix.shape[0]
-    min_k = max(2, min(min_k, n_samples - 1))
-    max_k = max(min_k, min(max_k, n_samples - 1))
-
-    if n_samples < 3:
-        return 2
-
-    best_k, best_score = min_k, -1
-    for k in range(min_k, max_k + 1):
-        if k >= n_samples:
-            break
-        km = KMeans(n_clusters=k, random_state=42, n_init=10)
-        labels = km.fit_predict(tfidf_matrix)
-        score = silhouette_score(tfidf_matrix, labels)
-        if score > best_score:
-            best_score = score
-            best_k = k
-
-    return best_k
-
-
-def _generate_topic_label(cluster_indices, vectorizer, tfidf_matrix, top_n=5):
-    """基于 TF-IDF 权重生成话题标签"""
-    cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
-    mean_tfidf = cluster_tfidf.mean(axis=0)
-    feature_names = vectorizer.get_feature_names_out()
-    top_indices = mean_tfidf.argsort()[-top_n:][::-1]
-    return [feature_names[i] for i in top_indices]
 
 
 # ── 后台聚类协程 ──
@@ -120,7 +70,7 @@ async def _run_clustering_async(task_id: str, user_id: int, workspace_id: int):
 
         # TF-IDF
         vectorizer = TfidfVectorizer(
-            tokenizer=_tokenize,
+            tokenizer=tokenize,
             token_pattern=None,
             max_features=500,
             min_df=1
@@ -130,7 +80,7 @@ async def _run_clustering_async(task_id: str, user_id: int, workspace_id: int):
         task_manager.update_task(task_id, progress=50, current_step="正在寻找最优聚类数")
 
         # 最优 K
-        best_k = _find_best_k(tfidf_matrix)
+        best_k = find_best_k(tfidf_matrix)
 
         task_manager.update_task(task_id, progress=65, current_step=f"K={best_k}，正在执行 KMeans 聚类")
 
@@ -144,7 +94,7 @@ async def _run_clustering_async(task_id: str, user_id: int, workspace_id: int):
         topic_labels = {}
         for cid in range(best_k):
             indices = np.where(labels == cid)[0]
-            topic_labels[cid] = _generate_topic_label(indices, vectorizer, tfidf_matrix)
+            topic_labels[cid] = generate_topic_label(indices, vectorizer, tfidf_matrix)
 
         task_manager.update_task(task_id, progress=90, current_step="正在保存聚类结果到数据库")
 
@@ -194,7 +144,10 @@ async def run_clustering(
 
 
 @router.get("/status/{task_id}")
-async def get_clustering_status(task_id: str):
+async def get_clustering_status(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
     """查询聚类任务进度"""
     task = task_manager.get_task(task_id)
     if not task:

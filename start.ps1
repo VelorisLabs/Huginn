@@ -103,7 +103,7 @@ Write-Host ""
 Write-Host "  前端界面: " -NoNewline; Write-Host "http://localhost:4321" -ForegroundColor Cyan
 Write-Host "  API 文档: " -NoNewline; Write-Host "http://localhost:8000/api/v1/docs" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  测试账号: test@example.com / test123" -ForegroundColor Yellow
+Write-Host "  测试账号: test@huginn.com / test123" -ForegroundColor Yellow
 Write-Host ""
 
 # 打开浏览器

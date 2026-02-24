@@ -3,16 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { themesAPI, type ThemeItem } from '@/lib/api';
 import {
   ArrowLeft, Plus, Trash2, Pencil, X, Check, FileText, Download,
-  Upload, AlertCircle, Tags, FolderOpen
+  Upload, AlertCircle, Tags, FolderOpen, Sparkles, Wand2, BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ThemeManagerProps {
   workspaceId: number;
+  workspaceName?: string;
   onBack: () => void;
 }
 
-export function ThemeManager({ workspaceId, onBack }: ThemeManagerProps) {
+export function ThemeManager({ workspaceId, workspaceName, onBack }: ThemeManagerProps) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
@@ -23,6 +24,10 @@ export function ThemeManager({ workspaceId, onBack }: ThemeManagerProps) {
   const [showImport, setShowImport] = useState(false);
   const [importContent, setImportContent] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [showAIGenerate, setShowAIGenerate] = useState(false);
+  const [aiTopic, setAiTopic] = useState(workspaceName || '');
+  const [aiBucketCount, setAiBucketCount] = useState(8);
+  const [aiPreview, setAiPreview] = useState('');
 
   // Fetch themes with workspace header
   const { data: themesData, isLoading } = useQuery({
@@ -95,6 +100,27 @@ export function ThemeManager({ workspaceId, onBack }: ThemeManagerProps) {
     },
   });
 
+  // AI Generate
+  const aiGenerateMut = useMutation({
+    mutationFn: (data: { topic: string; bucket_count: number }) =>
+      themesAPI.generateByAI(data.topic, data.bucket_count),
+    onSuccess: (res) => {
+      const content = res.data?.content || '';
+      setAiPreview(content);
+    },
+  });
+
+  // AI Generate → confirm import
+  const aiImportMut = useMutation({
+    mutationFn: (content: string) => themesAPI.importConfig(content),
+    onSuccess: () => {
+      invalidate();
+      setShowAIGenerate(false);
+      setAiPreview('');
+      setAiTopic(workspaceName || '');
+    },
+  });
+
   const startEdit = useCallback((theme: ThemeItem) => {
     setEditingId(theme.id);
     setEditName(theme.name);
@@ -139,6 +165,13 @@ export function ThemeManager({ workspaceId, onBack }: ThemeManagerProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setAiTopic(workspaceName || ''); setShowAIGenerate(true); }}
+            className="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            AI 生成
+          </button>
           <button
             onClick={() => setShowImport(true)}
             className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors flex items-center gap-1.5"
@@ -235,10 +268,62 @@ export function ThemeManager({ workspaceId, onBack }: ThemeManagerProps) {
       {isLoading ? (
         <div className="text-center py-12 text-slate-400">加载中...</div>
       ) : themes.length === 0 ? (
-        <div className="text-center py-16 space-y-3">
-          <Tags className="w-10 h-10 text-slate-300 mx-auto" />
-          <p className="text-sm text-slate-400">暂无主题桶</p>
-          <p className="text-xs text-slate-400">点击「添加主题」或「导入配置」开始</p>
+        <div className="py-8 space-y-6">
+          {/* Onboarding Guide */}
+          <div className="text-center space-y-2 mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center mx-auto mb-3">
+              <BookOpen className="w-7 h-7 text-indigo-500" />
+            </div>
+            <h3 className="text-base font-bold text-slate-700">开始配置你的主题桶</h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto">
+              主题桶用于将论文按研究方向分类。上传论文时，AI 会根据主题桶自动归类。
+              你可以通过以下方式快速配置：
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+            {/* Option 1: AI Generate */}
+            <button
+              onClick={() => { setAiTopic(workspaceName || ''); setShowAIGenerate(true); }}
+              className="group bg-gradient-to-br from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 border border-indigo-200 rounded-2xl p-5 text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center mb-3 transition-colors">
+                <Sparkles className="w-5 h-5 text-indigo-600" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800 mb-1">AI 智能生成</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                输入研究领域，AI 自动生成匹配的主题桶和标签
+              </p>
+              <span className="inline-block mt-3 text-[11px] font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-md">
+                推荐
+              </span>
+            </button>
+            {/* Option 2: Import Config */}
+            <button
+              onClick={() => setShowImport(true)}
+              className="group bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-200 rounded-2xl p-5 text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-50 group-hover:bg-amber-100 flex items-center justify-center mb-3 transition-colors">
+                <Upload className="w-5 h-5 text-amber-600" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800 mb-1">导入配置</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                粘贴 theme_buckets.md 格式的内容批量导入
+              </p>
+            </button>
+            {/* Option 3: Manual Add */}
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="group bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-2xl p-5 text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center mb-3 transition-colors">
+                <Plus className="w-5 h-5 text-emerald-600" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800 mb-1">手动添加</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                逐个创建主题桶，适合已有明确分类方案
+              </p>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -401,6 +486,151 @@ export function ThemeManager({ workspaceId, onBack }: ThemeManagerProps) {
           })}
         </div>
       )}
+
+      {/* AI Generate Modal */}
+      <AnimatePresence>
+        {showAIGenerate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+            onClick={() => { if (!aiGenerateMut.isPending) { setShowAIGenerate(false); setAiPreview(''); } }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                AI 智能生成主题桶
+              </h3>
+
+              {!aiPreview ? (
+                /* ── Step 1: Input topic ── */
+                <>
+                  <p className="text-xs text-slate-500">
+                    输入你的研究领域或方向，AI 将自动生成对应的主题桶配置。
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">研究领域 *</label>
+                      <input
+                        value={aiTopic}
+                        onChange={e => setAiTopic(e.target.value)}
+                        placeholder="例：教育心理学、计算机视觉、金融科技..."
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none transition-all"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && aiTopic.trim()) {
+                            aiGenerateMut.mutate({ topic: aiTopic.trim(), bucket_count: aiBucketCount });
+                          }
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">主题桶数量</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={3}
+                          max={15}
+                          value={aiBucketCount}
+                          onChange={e => setAiBucketCount(Number(e.target.value))}
+                          className="flex-1 accent-indigo-600"
+                        />
+                        <span className="text-sm font-medium text-slate-700 w-8 text-center">{aiBucketCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => { setShowAIGenerate(false); setAiPreview(''); }}
+                      className="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={() => aiGenerateMut.mutate({ topic: aiTopic.trim(), bucket_count: aiBucketCount })}
+                      disabled={!aiTopic.trim() || aiGenerateMut.isPending}
+                      className="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                    >
+                      {aiGenerateMut.isPending ? (
+                        <>
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          AI 生成中...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-3.5 h-3.5" />
+                          生成
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {aiGenerateMut.isError && (
+                    <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {(aiGenerateMut.error as any)?.response?.data?.detail || 'AI 生成失败，请重试'}
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* ── Step 2: Preview & confirm ── */
+                <>
+                  <p className="text-xs text-slate-500">
+                    以下是 AI 生成的主题桶配置，确认后将导入到当前工作区。你也可以编辑后再导入。
+                  </p>
+                  <textarea
+                    value={aiPreview}
+                    onChange={e => setAiPreview(e.target.value)}
+                    rows={14}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-mono focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none resize-none"
+                  />
+                  <div className="flex justify-between gap-2">
+                    <button
+                      onClick={() => { setAiPreview(''); aiGenerateMut.reset(); }}
+                      className="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      重新生成
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowAIGenerate(false); setAiPreview(''); }}
+                        className="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={() => aiImportMut.mutate(aiPreview)}
+                        disabled={!aiPreview.trim() || aiImportMut.isPending}
+                        className="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                      >
+                        {aiImportMut.isPending ? (
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        确认导入
+                      </button>
+                    </div>
+                  </div>
+                  {aiImportMut.isError && (
+                    <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {(aiImportMut.error as any)?.response?.data?.detail || '导入失败'}
+                    </div>
+                  )}
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Import Modal */}
       <AnimatePresence>

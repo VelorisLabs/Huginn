@@ -10,7 +10,7 @@
 7. 加载全局 scenario_weights.json 作为默认工作区的权重配置
 
 使用方法：
-  cd e:\\MyProject\\MyPaperAutoSummarize
+  cd e:\\MyProject\\Huginn
   uv run python scripts/migrations/add_workspaces.py
 """
 

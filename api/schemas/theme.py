@@ -50,3 +50,9 @@ class ThemeBucketsExport(BaseModel):
     """导出 theme_buckets.md"""
     content: str
     filename: str = "theme_buckets.md"
+
+
+class ThemeBucketsGenerate(BaseModel):
+    """AI 生成主题桶请求"""
+    topic: str = Field(..., description="研究领域/工作区名称，例如'教育心理学'")
+    bucket_count: int = Field(8, ge=3, le=15, description="生成的主题桶数量")

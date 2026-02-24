@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { Paper, DeepAnalysis } from '@/lib/api';
 import { paperAPI } from '@/lib/api';
+import { openPdfInNewTab } from '@/lib/pdfUtils';
+import { extractApiError } from '@/lib/errorUtils';
 import {
     ArrowLeft, FileText, User, Tag, BookOpen, Target, FlaskConical,
     Lightbulb, Route, Award, Calendar, BookMarked, Loader2, Brain,
@@ -56,9 +58,12 @@ export function PaperFullAnalysis({ paper, onBack }: PaperFullAnalysisProps) {
 
     const keywordList = paper.keywords ? paper.keywords.split(/[,;，；]/).map(k => k.trim()).filter(Boolean) : [];
 
-    const handleOpenPdf = () => {
-        const token = localStorage.getItem('access_token') || '';
-        window.open(`/api/v1/papers/${paper.id}/pdf?token=${encodeURIComponent(token)}`, '_blank');
+    const handleOpenPdf = async () => {
+        try {
+            await openPdfInNewTab(paper.id);
+        } catch {
+            alert('PDF 加载失败，请稍后重试');
+        }
     };
 
     const fetchOrGenerate = async () => {
@@ -79,7 +84,16 @@ export function PaperFullAnalysis({ paper, onBack }: PaperFullAnalysisProps) {
                 setGenerating(false);
             }
         } catch (err: any) {
-            const msg = err?.response?.data?.detail || '深度分析失败，请稍后重试';
+            const status = err?.response?.status;
+            const detail = err?.response?.data?.detail;
+            let msg: string;
+            if (status === 402) {
+                msg = typeof detail === 'object'
+                    ? `积分不足：需要 ${detail.required} 积分，当前余额 ${detail.current}`
+                    : '积分不足，无法进行精读分析（每次消耗 1 积分）';
+            } else {
+                msg = extractApiError(err, '深度分析失败，请稍后重试');
+            }
             setError(msg);
             setLoading(false);
             setGenerating(false);
@@ -91,34 +105,34 @@ export function PaperFullAnalysis({ paper, onBack }: PaperFullAnalysisProps) {
     }, [paper.id]);
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            {/* Top Bar */}
-            <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200">
-                <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-                    <button
-                        onClick={onBack}
-                        className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        返回
-                    </button>
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1">
-                            <Brain className="w-3 h-3" />
-                            精读报告
-                        </span>
+        <div className="flex flex-col h-full bg-slate-50">
+                {/* Top Bar */}
+                <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-slate-200">
+                    <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
                         <button
-                            onClick={handleOpenPdf}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                            onClick={onBack}
+                            className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
                         >
-                            <FileText className="w-4 h-4" />
-                            打开原文 PDF
+                            <ArrowLeft className="w-4 h-4" />
+                            返回
                         </button>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1">
+                                <Brain className="w-3 h-3" />
+                                精读报告
+                            </span>
+                            <button
+                                onClick={handleOpenPdf}
+                                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                            >
+                                <FileText className="w-4 h-4" />
+                                打开原文 PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="max-w-6xl mx-auto px-6 py-10">
+                <div className="max-w-6xl mx-auto px-6 py-10">
                 {/* Header */}
                 <header className="mb-10">
                     <h1 className="text-3xl font-bold text-slate-900 leading-tight mb-4">{paper.title}</h1>

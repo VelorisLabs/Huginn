@@ -1,6 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { paperAPI, type Paper } from '@/lib/api';
+import { getScoreColorScheme as getScoreColor } from '@/lib/scoreUtils';
 import { Award, Layers, Users, Calendar, BookOpen, Tag, Search, ChevronLeft, ChevronRight, Check, Archive, XCircle, Undo2 } from 'lucide-react';
 import { DecisionBar } from './decision/DecisionBar';
 import { BulkActionBar } from './decision/BulkActionBar';
@@ -37,19 +38,6 @@ const DECISION_BADGE: Record<string, { icon: React.ElementType; label: string; c
   archive: { icon: Archive,  label: '已归档', cls: 'text-slate-500 bg-slate-50 border-slate-200' },
   reject:  { icon: XCircle,  label: '已排除', cls: 'text-red-400 bg-red-50/60 border-red-100' },
 };
-
-function getScoreColor(score: number) {
-  if (score >= 8.5) return { bar: 'bg-emerald-500', text: 'text-emerald-600', bg: 'bg-emerald-50', badge: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
-  if (score >= 7.5) return { bar: 'bg-blue-500', text: 'text-blue-600', bg: 'bg-blue-50', badge: 'bg-blue-50 text-blue-700 border-blue-100' };
-  if (score >= 6.5) return { bar: 'bg-amber-500', text: 'text-amber-600', bg: 'bg-amber-50', badge: 'bg-amber-50 text-amber-700 border-amber-100' };
-  return { bar: 'bg-slate-400', text: 'text-slate-600', bg: 'bg-slate-50', badge: 'bg-slate-50 text-slate-600 border-slate-200' };
-}
-
-function extractFirstSentence(text: string): string {
-  const cleaned = text.replace(/^\d+\.\s*/, '').trim();
-  const match = cleaned.match(/^(.{20,120}?)[。，；,.;]/);
-  return match ? match[1] : cleaned.slice(0, 100);
-}
 
 const Row = memo(({ index, style, papers, onPaperClick, selectedIds, toggleSelection, selectionMode, focusedIndex, makeDecision, clearDecision, decisions }: { index: number; style: React.CSSProperties } & RowDataProps) => {
   const paper = papers[index];

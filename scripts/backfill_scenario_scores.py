@@ -4,7 +4,7 @@
 为已有论文计算三种场景的加权评分，无需 Celery/Redis。
 
 使用方法：
-  cd e:\MyProject\MyPaperAutoSummarize
+  cd e:\MyProject\Huginn
   python -m scripts.backfill_scenario_scores
 
 逻辑：读取 config/scenario_weights.json 中的三种场景权重，
@@ -14,6 +14,7 @@
 import json
 import sqlite3
 from pathlib import Path
+from shared.scoring import compute_weighted_score
 
 # ── 路径配置 ──────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -39,14 +40,14 @@ def load_scenarios(weights_file: Path) -> dict:
 
 
 def calculate_score(paper_row: dict, weights: dict) -> float:
-    score = (
-        (paper_row["score_rigor"] or 0) * weights["rigor"]
-        + (paper_row["score_innovation"] or 0) * weights["innovation"]
-        + (paper_row["score_practicality"] or 0) * weights["practicality"]
-        + (paper_row["score_impact"] or 0) * weights["impact"]
-        + (paper_row["score_readability"] or 0) * weights["readability"]
+    return compute_weighted_score(
+        paper_row["score_rigor"] or 0,
+        paper_row["score_innovation"] or 0,
+        paper_row["score_practicality"] or 0,
+        paper_row["score_impact"] or 0,
+        paper_row["score_readability"] or 0,
+        weights,
     )
-    return round(score, 2)
 
 
 def main():

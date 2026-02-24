@@ -22,6 +22,7 @@ ENV/
 # --- Node.js ---
 node_modules/
 .astro/
+frontend/dist/
 
 # --- 运行时数据 (不提交) ---
 data/
@@ -32,8 +33,7 @@ static_html_export/
 *.db
 
 # --- 私密部署教程（不提交） ---
-PRIVATE_DEPLOY_GUIDE.md
-PRIVATE_CLOUDFLARE_DNS_GUIDE.md
+PRIVATE_*.md
 TROUBLESHOOTING.md
 docs/VIDEO_PRODUCTION_GUIDE.md
 docs/CODE_REVIEW_REPORT.md
@@ -65,6 +65,13 @@ nul
 # --- 临时 / 备份 ---
 备份/
 error_log.txt
+
+# --- 媒体文件（不应进入仓库） ---
+*.mp4
+*.avi
+*.mov
+*.mkv
+Promotional video/
 
 # --- 审计报告 (内部文档，不进仓库) ---
 docs/audit/

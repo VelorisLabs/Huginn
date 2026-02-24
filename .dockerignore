@@ -1,0 +1,44 @@
+# Git
+.git/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.astro/
+
+# Data (runtime, not build)
+*.db
+*.sqlite3
+data/
+uploads/
+00_inbox_pdfs/
+01_extracted_json/
+02_summary_csv/
+03_visualizations/
+
+# Secrets
+.env
+.env.*
+
+# IDE & tools
+.vscode/
+.idea/
+.claude/
+.claudeignore
+
+# Archive & docs (not needed in image)
+archive/
+docs/
+
+# Misc
+*.mp4
+*.avi
+*.mov

@@ -48,10 +48,29 @@ class TaskManager:
             return
         self._initialized = True
         self._tasks: Dict[str, TaskInfo] = {}
+        self._cleanup_started = False
         logger.info("TaskManager 初始化完成（asyncio 模式）")
+    
+    def _ensure_cleanup_loop(self):
+        """确保后台清理循环已启动"""
+        if self._cleanup_started:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._periodic_cleanup())
+            self._cleanup_started = True
+        except RuntimeError:
+            pass
+    
+    async def _periodic_cleanup(self, interval_seconds: int = 3600):
+        """每小时自动清理过期任务"""
+        while True:
+            await asyncio.sleep(interval_seconds)
+            self.cleanup_old_tasks()
     
     def create_task(self) -> str:
         """创建新任务，返回task_id"""
+        self._ensure_cleanup_loop()
         task_id = str(uuid.uuid4())
         self._tasks[task_id] = TaskInfo(task_id=task_id)
         logger.info(f"创建任务: {task_id}")

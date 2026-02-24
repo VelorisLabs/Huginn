@@ -7,8 +7,6 @@
     python run.py extract      # P0: 提取论文信息
     python run.py rescore      # P1: 场景重算评分
     python run.py cluster      # P2: 聚类分析
-    python run.py visualize    # P3: 生成可视化图表
-    python run.py export       # P3: 导出静态HTML
     python run.py api          # 启动 FastAPI 后端服务
     python run.py full         # 运行完整流水线 (extract → rescore → cluster)
 
@@ -52,22 +50,6 @@ def run_cluster():
     print("  🔗 P2: 聚类分析")
     print("=" * 60)
     subprocess.run([sys.executable, "-m", "src.clustering"], cwd=ROOT_DIR)
-
-
-def run_visualize():
-    """运行 P3 可视化脚本"""
-    print("=" * 60)
-    print("  📊 P3: 生成可视化图表")
-    print("=" * 60)
-    subprocess.run([sys.executable, "-m", "src.visualize"], cwd=ROOT_DIR)
-
-
-def run_export():
-    """运行 P3 静态HTML导出"""
-    print("=" * 60)
-    print("  🌐 P3: 导出静态HTML")
-    print("=" * 60)
-    subprocess.run([sys.executable, "-m", "src.static_export"], cwd=ROOT_DIR)
 
 
 def run_api():
@@ -116,8 +98,6 @@ def show_help():
     print("  extract   - P0: 提取论文信息")
     print("  rescore   - P1: 场景重算评分")
     print("  cluster   - P2: 聚类分析")
-    print("  visualize - P3: 生成可视化图表")
-    print("  export    - P3: 导出静态HTML")
     print("  api       - 启动 FastAPI 后端服务")
     print("  full      - 运行完整流水线")
     print("  help      - 显示此帮助信息")
@@ -134,8 +114,6 @@ def main():
         "extract": run_extract,
         "rescore": run_rescore,
         "cluster": run_cluster,
-        "visualize": run_visualize,
-        "export": run_export,
         "api": run_api,
         "server": run_api,
         "full": run_full_pipeline,

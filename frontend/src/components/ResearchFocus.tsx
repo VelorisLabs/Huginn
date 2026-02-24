@@ -2,18 +2,12 @@ import { useMemo } from 'react';
 import { useDecision } from './decision/DecisionContext';
 import { DecisionBar } from './decision/DecisionBar';
 import { type Paper } from '@/lib/api';
+import { getScoreColor } from '@/lib/scoreUtils';
 import { Zap, Award, TrendingUp } from 'lucide-react';
 
 interface ResearchFocusProps {
   papers: Paper[];
   onPaperClick: (paper: Paper) => void;
-}
-
-function getScoreColor(score: number) {
-  if (score >= 8.5) return 'text-emerald-600';
-  if (score >= 7.5) return 'text-blue-600';
-  if (score >= 6.5) return 'text-amber-600';
-  return 'text-slate-500';
 }
 
 export function ResearchFocus({ papers, onPaperClick }: ResearchFocusProps) {

@@ -114,3 +114,19 @@ settings.BACKEND_CORS_ORIGINS = settings.get_cors_origins()
 
 # 确保上传目录存在
 settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# ── 场景权重加载（全局缓存，供多个模块共用） ──
+_SCENARIO_WEIGHTS_CACHE: dict | None = None
+
+
+def load_scenario_weights() -> dict:
+    """加载 config/scenario_weights.json 中的场景权重（带缓存）"""
+    global _SCENARIO_WEIGHTS_CACHE
+    if _SCENARIO_WEIGHTS_CACHE is None:
+        weights_file = settings.CONFIG_DIR / "scenario_weights.json"
+        if weights_file.exists():
+            with open(weights_file, "r", encoding="utf-8") as f:
+                _SCENARIO_WEIGHTS_CACHE = json.load(f)
+        else:
+            _SCENARIO_WEIGHTS_CACHE = {}
+    return _SCENARIO_WEIGHTS_CACHE

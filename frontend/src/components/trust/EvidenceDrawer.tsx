@@ -1,6 +1,7 @@
 
 import React from 'react';
 import type { Paper } from '@/lib/api';
+import { openPdfInNewTab } from '@/lib/pdfUtils';
 import { EvidenceBadge } from './EvidenceBadge';
 import { X, FileText, ExternalLink, User, Tag, BookOpen, Target, FlaskConical, Lightbulb, Route, Award, BarChart3 } from 'lucide-react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
@@ -52,9 +53,12 @@ export function EvidenceDrawer({ paper, isOpen, onClose, onFullAnalysis }: Evide
 
     const keywordList = paper.keywords ? paper.keywords.split(/[,;，；]/).map(k => k.trim()).filter(Boolean) : [];
 
-    const handleOpenPdf = () => {
-        const token = localStorage.getItem('access_token') || '';
-        window.open(`/api/v1/papers/${paper.id}/pdf?token=${encodeURIComponent(token)}`, '_blank');
+    const handleOpenPdf = async () => {
+        try {
+            await openPdfInNewTab(paper.id);
+        } catch {
+            alert('PDF 加载失败，请稍后重试');
+        }
     };
 
     return (

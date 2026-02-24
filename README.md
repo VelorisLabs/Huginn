@@ -113,7 +113,7 @@ npm run dev
 
 | 邮箱 | 密码 |
 |------|------|
-| test@example.com | test123 |
+| test@huginn.com | test123 |
 
 上传 PDF 论文，Huginn 会自动提取信息、生成评分、构建论文身份卡。
 

@@ -15,6 +15,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """用户创建"""
     password: str = Field(..., min_length=6)
+    invite_code: str = Field(..., min_length=1, max_length=32, description="邀请码")
 
 
 class UserLogin(BaseModel):
@@ -35,6 +36,7 @@ class UserInDB(UserBase):
     id: int
     is_active: bool
     is_superuser: bool
+    credits: int = 0
     created_at: datetime
     
     class Config:

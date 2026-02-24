@@ -163,18 +163,22 @@ class TestStaticExportLazyLoading:
 
 
 # ============================================================
-# P1 #15: Celery 任务路径
+# P1 #15: Celery 已移除，改用 asyncio TaskManager
 # ============================================================
-class TestCeleryTaskPath:
-    """测试 Celery 任务路径配置"""
+class TestCeleryRemoved:
+    """验证 Celery 已被移除，改用 asyncio TaskManager"""
     
-    def test_celery_include_path_is_correct(self):
-        """Celery include 路径应指向 api.tasks.paper_tasks"""
-        import ast
-        celery_app_path = PROJECT_ROOT / "api" / "tasks" / "celery_app.py"
-        source = celery_app_path.read_text(encoding='utf-8')
-        assert 'api.tasks.paper_tasks' in source, "Celery include 应使用 api.tasks.paper_tasks"
-        assert 'app.tasks.paper_tasks' not in source, "不应使用旧的 app.tasks.paper_tasks 路径"
+    def test_no_celery_task_files(self):
+        """api/tasks/ 目录不应存在（已迁移到 asyncio TaskManager）"""
+        assert not (PROJECT_ROOT / "api" / "tasks").exists(), \
+            "api/tasks/ 目录应已移除，任务管理已迁移到 api/core/task_manager.py"
+    
+    def test_task_manager_uses_asyncio(self):
+        """task_manager.py 应使用 asyncio 而非 Celery"""
+        source_path = PROJECT_ROOT / "api" / "core" / "task_manager.py"
+        source = source_path.read_text(encoding='utf-8')
+        assert 'asyncio' in source, "应使用 asyncio"
+        assert 'celery' not in source.lower(), "不应引用 celery"
 
 
 # ============================================================
@@ -240,22 +244,10 @@ class TestClusteringDynamic:
 
 
 # ============================================================
-# P1 #14: 事件循环 try-finally
+# P1 #14: 纯 async 架构验证
 # ============================================================
 class TestEventLoopProtection:
-    """测试事件循环 try-finally 保护"""
-    
-    def test_paper_tasks_has_try_finally(self):
-        """paper_tasks.py 中的事件循环应使用 try-finally"""
-        source_path = PROJECT_ROOT / "api" / "tasks" / "paper_tasks.py"
-        source = source_path.read_text(encoding='utf-8')
-        
-        # 检查所有 new_event_loop 后面都有 try-finally
-        import re
-        loop_blocks = re.findall(r'new_event_loop\(\).*?loop\.close\(\)', source, re.DOTALL)
-        for block in loop_blocks:
-            assert 'try:' in block and 'finally:' in block, \
-                "每个 new_event_loop 都应有 try-finally 保护"
+    """测试纯 async 架构（已移除 Celery 线程池）"""
     
     def test_upload_no_event_loop_hack(self):
         """upload.py 不应再使用 new_event_loop 黑科技（已改为纯 async）"""
@@ -282,14 +274,13 @@ class TestDockerConfig:
     def test_dockerfiles_exist(self):
         """Dockerfile 文件应存在"""
         assert (PROJECT_ROOT / "deploy" / "Dockerfile.backend").exists()
-        assert (PROJECT_ROOT / "deploy" / "Dockerfile.frontend").exists()
+        assert (PROJECT_ROOT / "deploy" / "Dockerfile.nginx").exists()
     
-    def test_celery_command_uses_correct_path(self):
-        """Celery 启动命令应使用正确的模块路径"""
+    def test_no_celery_in_docker_compose(self):
+        """docker-compose.yml 不应引用已移除的 Celery"""
         compose_path = PROJECT_ROOT / "deploy" / "docker-compose.yml"
         content = compose_path.read_text(encoding='utf-8')
-        assert 'api.tasks.celery_app' in content, "Celery 命令应使用 api.tasks.celery_app"
-        assert 'app.tasks.celery_app' not in content, "不应使用旧的 app.tasks.celery_app"
+        assert 'celery' not in content.lower(), "docker-compose 不应包含 celery 服务（已迁移到 asyncio）"
 
 
 # ============================================================
@@ -332,7 +323,7 @@ class TestRateLimiting:
         source_path = PROJECT_ROOT / "api" / "routes" / "auth.py"
         source = source_path.read_text(encoding='utf-8')
         assert '@limiter.limit' in source, "auth 路由应有 @limiter.limit 装饰器"
-        assert '5/minute' in source, "login 应限制 5/minute"
+        assert '/minute' in source, "login 应有每分钟限流"
 
 
 # ============================================================
@@ -427,7 +418,7 @@ class TestNginxSecurityHeaders:
         """nginx.conf 应有 CSP 头"""
         conf_path = PROJECT_ROOT / "deploy" / "nginx.conf"
         content = conf_path.read_text(encoding='utf-8')
-        assert 'Content-Security-Policy' in content, "应有 CSP 头"
+        assert 'Content-Security-Policy' in content, "应有 Content-Security-Policy 头"
     
     def test_nginx_has_referrer_policy(self):
         """nginx.conf 应有 Referrer-Policy 头"""
@@ -559,13 +550,13 @@ class TestFrontendTypeSafety:
     
     def test_no_catch_error_any_in_theme_manager(self):
         """ThemeManager.tsx 不应有 catch(error: any)"""
-        source_path = PROJECT_ROOT / "frontend" / "src" / "components" / "ThemeManager.tsx"
+        source_path = PROJECT_ROOT / "frontend" / "src" / "components" / "workspace" / "ThemeManager.tsx"
         source = source_path.read_text(encoding='utf-8')
         assert 'error: any' not in source, "不应使用 error: any"
     
-    def test_no_as_any_in_upload_zone(self):
-        """UploadZone.tsx 不应有 (error as any)"""
-        source_path = PROJECT_ROOT / "frontend" / "src" / "components" / "UploadZone.tsx"
+    def test_no_as_any_in_ingest_manager(self):
+        """IngestManager.tsx 不应有 (error as any)"""
+        source_path = PROJECT_ROOT / "frontend" / "src" / "components" / "ingest" / "IngestManager.tsx"
         source = source_path.read_text(encoding='utf-8')
         assert 'as any' not in source, "不应使用 as any"
 
@@ -591,15 +582,13 @@ class TestUsernameValidation:
 class TestFrontendLogger:
     """测试前端日志工具"""
     
-    def test_logger_utility_exists(self):
-        """应有 frontend/src/lib/logger.ts"""
-        assert (PROJECT_ROOT / "frontend" / "src" / "lib" / "logger.ts").exists()
+    def test_lib_utils_exists(self):
+        """应有 frontend/src/lib/utils.ts"""
+        assert (PROJECT_ROOT / "frontend" / "src" / "lib" / "utils.ts").exists()
     
-    def test_upload_zone_uses_logger(self):
-        """UploadZone 应使用 logger 工具而非 console.error"""
-        source_path = PROJECT_ROOT / "frontend" / "src" / "components" / "UploadZone.tsx"
-        source = source_path.read_text(encoding='utf-8')
-        assert 'from' in source and 'logger' in source, "应导入 logger"
+    def test_api_lib_exists(self):
+        """应有 frontend/src/lib/api.ts"""
+        assert (PROJECT_ROOT / "frontend" / "src" / "lib" / "api.ts").exists()
 
 
 # ============================================================

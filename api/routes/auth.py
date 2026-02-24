@@ -16,7 +16,11 @@ from ..core.security import (
 from ..core.config import settings
 from ..core.deps import get_current_user
 from ..models.user import User
+from ..models.invite_code import InviteCode
+from ..models.credit import CreditTransaction, CreditType
+from ..core.credit_service import add_credits, get_transactions
 from ..schemas.user import UserCreate, UserLogin, UserInDB, Token
+from ..schemas.credit import CreditTransactionOut, CreditBalance
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -32,7 +36,32 @@ async def register(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """用户注册"""
+    """用户注册（需要邀请码）"""
+    # 验证邀请码
+    result = await db.execute(
+        select(InviteCode).where(
+            InviteCode.code == user_data.invite_code,
+            InviteCode.is_active == True,
+        )
+    )
+    invite = result.scalar_one_or_none()
+    if not invite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="邀请码无效或已停用"
+        )
+    if invite.used_count >= invite.max_uses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="邀请码已达到最大使用次数"
+        )
+    from datetime import datetime, timezone
+    if invite.expires_at and invite.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="邀请码已过期"
+        )
+
     # 检查邮箱是否已存在
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none():
@@ -49,14 +78,30 @@ async def register(
             detail="该用户名已被使用"
         )
     
-    # 创建用户
+    # 创建用户（带初始积分）
     user = User(
         email=user_data.email,
         username=user_data.username,
-        hashed_password=get_password_hash(user_data.password)
+        hashed_password=get_password_hash(user_data.password),
+        credits=invite.credits,
     )
-    
     db.add(user)
+
+    # 消耗邀请码使用次数
+    invite.used_count += 1
+
+    await db.flush()
+
+    # 记录积分流水
+    txn = CreditTransaction(
+        user_id=user.id,
+        amount=invite.credits,
+        type=CreditType.INVITE_REGISTER,
+        balance_after=invite.credits,
+        description=f"注册赠送（邀请码 {invite.code}）",
+    )
+    db.add(txn)
+
     await db.commit()
     await db.refresh(user)
     
@@ -178,3 +223,21 @@ async def logout():
     response.delete_cookie(key="access_token", path="/")
     response.delete_cookie(key="refresh_token", path="/api/v1/auth")
     return response
+
+
+@router.get("/credits", response_model=CreditBalance)
+async def get_my_credits(
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前用户积分余额"""
+    return CreditBalance(credits=current_user.credits, user_id=current_user.id)
+
+
+@router.get("/credits/transactions", response_model=list[CreditTransactionOut])
+async def get_my_transactions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取当前用户积分流水"""
+    txns = await get_transactions(db, current_user.id)
+    return txns

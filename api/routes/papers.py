@@ -3,19 +3,22 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from typing import Optional, List
 from pathlib import Path
 import os
 import logging
+import base64
 
 from ..core.database import get_db
 from ..core.deps import get_current_active_user, get_current_workspace
+from ..core.credit_service import check_credits, deduct_credits
 from ..models.user import User
 from ..models.workspace import Workspace
 from ..models.paper import Paper
+from ..models.credit import CreditType
 from ..schemas.paper import PaperInDB
 
 logger = logging.getLogger(__name__)
@@ -97,6 +100,7 @@ async def get_paper(
 async def get_paper_pdf(
     paper_id: int,
     token: Optional[str] = Query(None, description="JWT token (用于浏览器直接打开)"),
+    stream: bool = Query(False, description="以 octet-stream 返回，绕过下载管理器拦截"),
     db: AsyncSession = Depends(get_db),
 ):
     """获取论文 PDF 文件（通过 query token 认证，便于浏览器直接打开）"""
@@ -145,10 +149,84 @@ async def get_paper_pdf(
             detail="PDF 文件不存在，可能已被删除"
         )
     
+    # 构造有意义的文件名: {paper_id}_{title}.pdf
+    from urllib.parse import quote
+    import re as _re
+    title = paper.title or "paper"
+    # 清理标题中不适合做文件名的字符
+    safe_title = _re.sub(r'[\\/:*?"<>|\r\n]+', '_', title).strip('_. ')
+    # 截断过长标题
+    if len(safe_title) > 80:
+        safe_title = safe_title[:80].rstrip('_. ')
+    raw_name = f"{paper_id}_{safe_title}.pdf"
+    encoded_name = quote(raw_name)
+
+    if stream:
+        # 以 octet-stream 返回，前端通过 fetch 获取后自行构造 PDF blob
+        # 避免被 IDM 等下载管理器根据 Content-Type 拦截
+        disposition = f"inline; filename*=UTF-8''{encoded_name}"
+        return FileResponse(
+            path=str(file_path),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": disposition},
+        )
+
+    # Content-Disposition: inline 让浏览器直接展示 PDF 而非下载
+    disposition = f"inline; filename*=UTF-8''{encoded_name}"
     return FileResponse(
         path=str(file_path),
         media_type="application/pdf",
+        headers={"Content-Disposition": disposition},
     )
+
+
+@router.get("/{paper_id}/pdf-data")
+async def get_paper_pdf_data(
+    paper_id: int,
+    token: Optional[str] = Query(None, description="JWT token (用于浏览器直接打开)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """以 base64 JSON 返回 PDF 数据，绕过 IDM 等下载管理器对 fetch/XHR 的拦截"""
+    from ..core.security import decode_access_token
+
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="缺少认证 token")
+
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token")
+
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token")
+
+    user_result = await db.execute(select(User).where(User.id == int(user_id_str)))
+    current_user = user_result.scalar_one_or_none()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在")
+
+    result = await db.execute(
+        select(Paper).where(
+            Paper.id == paper_id,
+            Paper.user_id == current_user.id
+        )
+    )
+    paper = result.scalar_one_or_none()
+
+    if not paper:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="论文不存在")
+
+    if not paper.file_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该论文没有关联的 PDF 文件")
+
+    file_path = Path(paper.file_path.strip())
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF 文件不存在，可能已被删除")
+
+    pdf_bytes = file_path.read_bytes()
+    pdf_base64 = base64.b64encode(pdf_bytes).decode("ascii")
+
+    return JSONResponse(content={"data": pdf_base64, "filename": f"{paper_id}_{paper.title or 'paper'}.pdf"})
 
 
 @router.get("/{paper_id}/deep-analysis")
@@ -193,9 +271,14 @@ async def generate_deep_analysis(
     if not paper:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="论文不存在")
 
-    # 已有缓存直接返回
+    # 已有缓存直接返回（不扣积分）
     if paper.deep_analysis:
         return {"status": "ready", "data": paper.deep_analysis}
+
+    # 积分检查与扣减（仅首次生成时扣费，先提交确保扣费不可逆）
+    await check_credits(current_user, CreditType.DEEP_ANALYSIS)
+    await deduct_credits(db, current_user, CreditType.DEEP_ANALYSIS, f"深度分析: {paper.title or paper_id}")
+    await db.commit()
 
     # 需要 PDF 文本来做深度分析
     if not paper.file_path:

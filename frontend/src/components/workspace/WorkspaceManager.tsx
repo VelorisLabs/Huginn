@@ -82,9 +82,11 @@ export function WorkspaceManager() {
 
   // If ThemeManager sub-view is active, render it instead
   if (themeManagerWsId !== null) {
+    const wsName = workspaces.find(w => w.id === themeManagerWsId)?.name || '';
     return (
       <ThemeManager
         workspaceId={themeManagerWsId}
+        workspaceName={wsName}
         onBack={() => setThemeManagerWsId(null)}
       />
     );

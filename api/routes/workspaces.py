@@ -5,11 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List
-import json
-from pathlib import Path
 
 from ..core.database import get_db
 from ..core.deps import get_current_user
+from ..core.config import load_scenario_weights
 from ..models.user import User
 from ..models.workspace import Workspace
 from ..models.theme import Theme
@@ -22,22 +21,6 @@ from ..schemas.workspace import (
 )
 
 router = APIRouter()
-
-# ── 默认场景权重（从 config/scenario_weights.json 读取） ──
-
-_DEFAULT_WEIGHTS: dict | None = None
-
-
-def _load_default_weights() -> dict:
-    global _DEFAULT_WEIGHTS
-    if _DEFAULT_WEIGHTS is None:
-        weights_file = Path(__file__).resolve().parent.parent.parent / "config" / "scenario_weights.json"
-        if weights_file.exists():
-            with open(weights_file, "r", encoding="utf-8") as f:
-                _DEFAULT_WEIGHTS = json.load(f)
-        else:
-            _DEFAULT_WEIGHTS = {}
-    return _DEFAULT_WEIGHTS
 
 
 # ── CRUD ─────────────────────────────────────────────────────
@@ -148,7 +131,7 @@ async def create_workspace(
     # 如果没有提供场景权重，使用全局默认
     weights = data.scenario_weights
     if weights is None:
-        weights = _load_default_weights()
+        weights = load_scenario_weights()
 
     workspace = Workspace(
         user_id=current_user.id,

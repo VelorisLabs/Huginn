@@ -9,6 +9,8 @@ interface User {
   email: string;
   username: string;
   is_active: boolean;
+  is_superuser: boolean;
+  credits: number;
   created_at: string;
 }
 
@@ -17,7 +19,7 @@ interface AuthStore {
   token: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, username: string, password: string) => Promise<void>;
+  register: (email: string, username: string, password: string, invite_code: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -53,8 +55,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
     });
   },
 
-  register: async (email: string, username: string, password: string) => {
-    await authAPI.register({ email, username, password });
+  register: async (email: string, username: string, password: string, invite_code: string) => {
+    await authAPI.register({ email, username, password, invite_code });
     // 注册后自动登录
     const response = await authAPI.login({ email, password });
     const { access_token } = response.data;

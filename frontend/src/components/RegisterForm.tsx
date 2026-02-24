@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { AxiosError } from 'axios';
-import { Sparkles, AlertCircle, Mail, Lock, User } from 'lucide-react';
+import { extractApiError } from '@/lib/errorUtils';
+import { Sparkles, AlertCircle, Mail, Lock, User, Ticket } from 'lucide-react';
 
 export default function RegisterForm() {
   const { register } = useAuthStore();
@@ -9,6 +9,7 @@ export default function RegisterForm() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -36,16 +37,18 @@ export default function RegisterForm() {
       return;
     }
 
+    if (!inviteCode.trim()) {
+      setError('请输入邀请码');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await register(email, username, password);
+      await register(email, username, password, inviteCode.trim());
       window.location.href = '/';
     } catch (err) {
-      const message = err instanceof AxiosError
-        ? err.response?.data?.detail || '注册失败，请稍后重试'
-        : '网络错误，请检查网络连接';
-      setError(message);
+      setError(extractApiError(err, '注册失败，请稍后重试'));
     } finally {
       setLoading(false);
     }
@@ -86,6 +89,14 @@ export default function RegisterForm() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">邀请码</label>
+              <div className="relative">
+                <Ticket className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required maxLength={32} className={inputClass} placeholder="请输入邀请码" />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">邮箱地址</label>
               <div className="relative">

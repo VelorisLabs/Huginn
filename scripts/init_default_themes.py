@@ -108,5 +108,5 @@ async def init_themes_for_user(email: str):
 
 if __name__ == "__main__":
     import sys
-    email = sys.argv[1] if len(sys.argv) > 1 else "test@example.com"
+    email = sys.argv[1] if len(sys.argv) > 1 else "test@huginn.com"
     asyncio.run(init_themes_for_user(email))

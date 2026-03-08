@@ -65,7 +65,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError);
         localStorage.removeItem('access_token');
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/')) {
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth/') && window.location.pathname !== '/') {
           window.location.href = '/auth/login';
         }
         return Promise.reject(refreshError);

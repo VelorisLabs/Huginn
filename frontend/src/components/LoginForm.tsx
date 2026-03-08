@@ -17,7 +17,7 @@ export default function LoginForm() {
 
     try {
       await login(email, password);
-      window.location.href = '/';
+      window.location.href = '/app';
     } catch (err) {
       setError(extractApiError(err, '登录失败，请检查邮箱和密码'));
     } finally {
@@ -109,11 +109,16 @@ export default function LoginForm() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
             <p className="text-sm text-slate-500">
               还没有账户？{' '}
               <a href="/auth/register" className="text-primary-600 hover:text-primary-700 font-semibold transition-colors">
                 立即注册
+              </a>
+            </p>
+            <p className="text-sm">
+              <a href="/" className="text-slate-400 hover:text-slate-600 transition-colors">
+                &larr; 返回首页
               </a>
             </p>
           </div>

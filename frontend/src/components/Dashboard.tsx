@@ -219,20 +219,10 @@ export default function Dashboard() {
     : `您的研究库共收录 ${papers.length} 篇论文。`;
 
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-primary-50/30 to-slate-50">
-        <div className="text-center space-y-6">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-glow-lg">
-            <Sparkles className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">PaperAI</h1>
-            <p className="text-slate-500 mt-1">Research Intelligence Platform</p>
-          </div>
-          <a href="/auth/login" className="btn-primary">进入系统</a>
-        </div>
-      </div>
-    );
+    if (typeof window !== 'undefined') {
+      window.location.href = '/auth/login';
+    }
+    return null;
   }
 
   if (fullAnalysisPaper) {

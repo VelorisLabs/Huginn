@@ -46,7 +46,7 @@ export default function RegisterForm() {
 
     try {
       await register(email, username, password, inviteCode.trim());
-      window.location.href = '/';
+      window.location.href = '/app';
     } catch (err) {
       setError(extractApiError(err, '注册失败，请稍后重试'));
     } finally {
@@ -146,11 +146,16 @@ export default function RegisterForm() {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
             <p className="text-sm text-slate-500">
               已有账户？{' '}
               <a href="/auth/login" className="text-primary-600 hover:text-primary-700 font-semibold transition-colors">
                 立即登录
+              </a>
+            </p>
+            <p className="text-sm">
+              <a href="/" className="text-slate-400 hover:text-slate-600 transition-colors">
+                &larr; 返回首页
               </a>
             </p>
           </div>

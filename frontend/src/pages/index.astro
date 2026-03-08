@@ -1,8 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import App from '../components/App';
+import Landing from '../components/Landing';
 ---
 
-<Layout title="论文分析系统 - 首页">
-  <App client:only="react" />
+<Layout title="PaperAI - AI 驱动的论文分析平台">
+  <Landing client:load />
 </Layout>

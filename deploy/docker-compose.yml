@@ -27,29 +27,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - huginn-network
-
-  # 前端 Nginx (Astro 静态文件 + 反向代理)
-  nginx:
-    build:
-      context: ../
-      dockerfile: deploy/Dockerfile.nginx
-    container_name: huginn-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - backend
-    networks:
-      - huginn-network
-
-networks:
-  huginn-network:
-    driver: bridge
 
 volumes:
   backend_data:
